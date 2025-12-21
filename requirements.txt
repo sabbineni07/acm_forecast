@@ -1,0 +1,105 @@
+# Azure Cost Management Forecasting - Requirements
+# Complete package list for local development and production
+
+# ============================================================================
+# Core Data Science Libraries
+# ============================================================================
+pandas>=1.5.0,<3.0.0
+numpy>=1.21.0,<2.0.0
+scikit-learn>=1.1.0,<2.0.0
+
+# ============================================================================
+# PySpark and Distributed Computing
+# ============================================================================
+pyspark>=3.3.0,<4.0.0
+py4j>=0.10.9,<1.0.0
+
+# ============================================================================
+# Time Series Forecasting
+# ============================================================================
+prophet>=1.1.0,<2.0.0
+statsmodels>=0.13.0,<1.0.0
+pmdarima>=2.0.0,<3.0.0
+
+# ============================================================================
+# Machine Learning
+# ============================================================================
+xgboost>=1.6.0,<3.0.0
+lightgbm>=3.3.0,<5.0.0
+
+# ============================================================================
+# Model Registry and MLOps
+# ============================================================================
+mlflow>=2.0.0,<3.0.0
+
+# ============================================================================
+# Scientific Computing
+# ============================================================================
+scipy>=1.9.0,<2.0.0
+
+# ============================================================================
+# Visualization
+# ============================================================================
+matplotlib>=3.5.0,<4.0.0
+seaborn>=0.11.0,<1.0.0
+plotly>=5.10.0,<6.0.0
+bokeh>=2.4.0,<4.0.0
+
+# ============================================================================
+# Utilities
+# ============================================================================
+python-dateutil>=2.8.0,<3.0.0
+pytz>=2022.1
+tqdm>=4.64.0,<5.0.0
+joblib>=1.2.0,<2.0.0
+
+# ============================================================================
+# Jupyter and Interactive Development
+# ============================================================================
+jupyter>=1.0.0,<2.0.0
+jupyterlab>=3.5.0,<5.0.0
+ipywidgets>=7.7.0,<9.0.0
+notebook>=6.5.0,<8.0.0
+
+# ============================================================================
+# Model Explainability (Optional but Recommended)
+# ============================================================================
+shap>=0.41.0,<1.0.0
+
+# ============================================================================
+# Development and Testing (Optional)
+# ============================================================================
+pytest>=7.0.0,<8.0.0
+pytest-cov>=4.0.0,<5.0.0
+black>=22.0.0,<25.0.0
+flake8>=5.0.0,<7.0.0
+mypy>=1.0.0,<2.0.0
+
+# ============================================================================
+# Notes:
+# ============================================================================
+# 1. Prophet requires additional system dependencies:
+#    - On Linux: sudo apt-get install build-essential
+#    - On macOS: xcode-select --install
+#    - Prophet uses Stan which requires a C++ compiler
+#
+# 2. PySpark requires Java 8 or 11:
+#    - Install Java JDK and set JAVA_HOME environment variable
+#    - For local development, PySpark will download Spark automatically
+#
+# 3. MLflow requires a tracking server for production:
+#    - Can use local file system for development
+#    - For production, use MLflow server or Databricks MLflow
+#
+# 4. For Databricks environment:
+#    - Many packages are pre-installed
+#    - Check Databricks runtime version compatibility
+#    - Use Databricks cluster libraries for additional packages
+#
+# 5. Installation:
+#    pip install -r requirements.txt
+#
+# 6. For minimal installation (core functionality only):
+#    pip install pandas numpy scikit-learn prophet pmdarima xgboost mlflow scipy
+
+

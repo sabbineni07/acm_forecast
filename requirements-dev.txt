@@ -1,0 +1,28 @@
+# Azure Cost Management Forecasting - Development Requirements
+# Includes all packages from requirements.txt plus development tools
+
+-r requirements.txt
+
+# Development Tools
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-xdist>=3.0.0  # Parallel test execution
+black>=22.0.0
+flake8>=5.0.0
+mypy>=1.0.0
+isort>=5.10.0
+pre-commit>=2.20.0
+
+# Documentation
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.0.0
+
+# Code Quality
+pylint>=2.15.0
+bandit>=1.7.0  # Security linting
+
+# Jupyter Extensions
+jupyter-contrib-nbextensions>=0.5.1
+jupyter-nbextensions-configurator>=0.4.1
+
+

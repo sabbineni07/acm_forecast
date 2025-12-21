@@ -1,0 +1,228 @@
+"""
+Data Quality Validation Module
+Section 3.1.4: Data Reliability
+"""
+
+from typing import Dict, Any, Optional
+import pandas as pd
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, count, sum as spark_sum, isnull, isnan
+import logging
+
+from ..config.settings import data_config, performance_config
+
+logger = logging.getLogger(__name__)
+
+
+class DataQualityValidator:
+    """
+    Data quality validation and monitoring
+    Section 3.1.4: Data Reliability
+    """
+    
+    def __init__(self, spark: Optional[SparkSession] = None):
+        """
+        Initialize data quality validator
+        
+        Args:
+            spark: SparkSession for Databricks environment
+        """
+        self.spark = spark
+    
+    def validate_completeness(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Validate data completeness (Section 3.1.4)
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Completeness validation results
+        """
+        total_records = df.count()
+        
+        # Check for missing values in key columns
+        key_columns = [
+            "UsageDateTime", "PreTaxCost", "MeterCategory",
+            "ResourceLocation", "Currency"
+        ]
+        
+        missing_counts = {}
+        for col_name in key_columns:
+            if col_name in df.columns:
+                missing_count = df.filter(
+                    isnull(col(col_name)) | isnan(col(col_name))
+                ).count()
+                missing_counts[col_name] = {
+                    "count": missing_count,
+                    "percentage": (missing_count / total_records * 100) if total_records > 0 else 0
+                }
+        
+        # Overall completeness
+        total_missing = sum([m["count"] for m in missing_counts.values()])
+        completeness_rate = ((total_records - total_missing) / total_records * 100) if total_records > 0 else 0
+        
+        results = {
+            "total_records": total_records,
+            "missing_values": missing_counts,
+            "completeness_rate": completeness_rate,
+            "meets_threshold": completeness_rate >= (100 - performance_config.warning_missing_data)
+        }
+        
+        return results
+    
+    def validate_accuracy(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Validate data accuracy (Section 3.1.4)
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Accuracy validation results
+        """
+        # Check for negative costs (should not exist)
+        negative_costs = df.filter(col("PreTaxCost") < 0).count()
+        
+        # Check for zero costs (may be valid, but flag for review)
+        zero_costs = df.filter(col("PreTaxCost") == 0).count()
+        
+        # Check currency consistency (should be USD)
+        currency_check = df.filter(col("Currency") != "USD").count()
+        
+        # Check date range validity
+        date_stats = df.agg(
+            {"UsageDateTime": "min", "UsageDateTime": "max"}
+        ).collect()[0]
+        
+        results = {
+            "negative_costs": negative_costs,
+            "zero_costs": zero_costs,
+            "non_usd_currency": currency_check,
+            "date_range": {
+                "min": date_stats.get("min(UsageDateTime)"),
+                "max": date_stats.get("max(UsageDateTime)")
+            },
+            "data_quality_issues": negative_costs > 0 or currency_check > 0
+        }
+        
+        return results
+    
+    def validate_consistency(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Validate data consistency (Section 3.1.4)
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Consistency validation results
+        """
+        # Check for duplicate records
+        total_records = df.count()
+        distinct_records = df.distinct().count()
+        duplicates = total_records - distinct_records
+        
+        # Check for data type consistency
+        # (This would require schema validation)
+        
+        results = {
+            "total_records": total_records,
+            "distinct_records": distinct_records,
+            "duplicate_records": duplicates,
+            "duplicate_percentage": (duplicates / total_records * 100) if total_records > 0 else 0
+        }
+        
+        return results
+    
+    def validate_timeliness(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Validate data timeliness (Section 3.1.4)
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Timeliness validation results
+        """
+        from datetime import datetime
+        
+        # Get latest date in data
+        latest_date = df.agg({"UsageDateTime": "max"}).collect()[0]["max(UsageDateTime)"]
+        
+        if latest_date:
+            # Calculate hours since last update
+            hours_since_update = (datetime.now() - latest_date).total_seconds() / 3600
+            
+            # Check if data is fresh (within SLA)
+            is_fresh = hours_since_update <= data_config.max_data_delay_hours
+            
+            results = {
+                "latest_date": latest_date,
+                "hours_since_update": hours_since_update,
+                "is_fresh": is_fresh,
+                "meets_sla": is_fresh
+            }
+        else:
+            results = {
+                "latest_date": None,
+                "hours_since_update": None,
+                "is_fresh": False,
+                "meets_sla": False
+            }
+        
+        return results
+    
+    def comprehensive_validation(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Perform comprehensive data quality validation
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Complete validation results
+        """
+        logger.info("Performing comprehensive data quality validation")
+        
+        validation_results = {
+            "completeness": self.validate_completeness(df),
+            "accuracy": self.validate_accuracy(df),
+            "consistency": self.validate_consistency(df),
+            "timeliness": self.validate_timeliness(df)
+        }
+        
+        # Overall quality score
+        quality_score = self._calculate_quality_score(validation_results)
+        validation_results["quality_score"] = quality_score
+        
+        logger.info(f"Data quality score: {quality_score:.2f}%")
+        return validation_results
+    
+    def _calculate_quality_score(self, validation_results: Dict[str, Any]) -> float:
+        """
+        Calculate overall data quality score
+        
+        Args:
+            validation_results: Validation results dictionary
+            
+        Returns:
+            Quality score (0-100)
+        """
+        # Weighted average of different quality dimensions
+        completeness = validation_results["completeness"]["completeness_rate"]
+        accuracy = 100.0 if not validation_results["accuracy"]["data_quality_issues"] else 80.0
+        consistency = 100.0 - min(validation_results["consistency"]["duplicate_percentage"], 10.0)
+        timeliness = 100.0 if validation_results["timeliness"]["meets_sla"] else 70.0
+        
+        # Weighted average
+        quality_score = (
+            completeness * 0.3 +
+            accuracy * 0.3 +
+            consistency * 0.2 +
+            timeliness * 0.2
+        )
+        
+        return quality_score
+
+

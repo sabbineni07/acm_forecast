@@ -1,0 +1,32 @@
+# Azure Cost Management Forecasting - Minimal Requirements
+# Core packages only for essential functionality
+
+# Core Data Science
+pandas>=1.5.0
+numpy>=1.21.0
+scikit-learn>=1.1.0
+
+# PySpark (for Databricks/Delta table access)
+pyspark>=3.3.0
+py4j>=0.10.9
+
+# Time Series Forecasting
+prophet>=1.1.0
+statsmodels>=0.13.0
+pmdarima>=2.0.0
+
+# Machine Learning
+xgboost>=1.6.0
+
+# Model Registry
+mlflow>=2.0.0
+
+# Scientific Computing
+scipy>=1.9.0
+
+# Utilities
+python-dateutil>=2.8.0
+pytz>=2022.1
+joblib>=1.2.0
+
+

@@ -1,0 +1,186 @@
+"""
+Data Source Module
+Section 3.1: Data Sourcing
+"""
+
+from typing import Optional, Dict, Any
+import pandas as pd
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import col, sum as spark_sum, avg, count
+import logging
+
+from ..config.settings import data_config
+
+logger = logging.getLogger(__name__)
+
+
+class DataSource:
+    """
+    Data source handler for Azure Cost Management data
+    Section 3.1.1: Data Source Location
+    Section 3.1.2: Data Constraints
+    Section 3.1.3: Data Mapping
+    Section 3.1.4: Data Reliability
+    """
+    
+    def __init__(self, spark: Optional[SparkSession] = None):
+        """
+        Initialize data source
+        
+        Args:
+            spark: SparkSession for Databricks environment
+        """
+        self.spark = spark
+        self.delta_table_path = data_config.delta_table_path
+        self.database_name = data_config.database_name
+        self.table_name = data_config.table_name
+        
+    def load_from_delta(self, 
+                       start_date: Optional[str] = None,
+                       end_date: Optional[str] = None,
+                       category: Optional[str] = None) -> DataFrame:
+        """
+        Load data from Delta table (Section 3.1.1)
+        
+        Args:
+            start_date: Start date filter (YYYY-MM-DD)
+            end_date: End date filter (YYYY-MM-DD)
+            category: MeterCategory filter
+            
+        Returns:
+            Spark DataFrame with Azure cost data
+        """
+        if self.spark is None:
+            raise ValueError("SparkSession is required for Delta table access")
+        
+        logger.info(f"Loading data from {self.delta_table_path}")
+        
+        # Read from Delta table
+        df = self.spark.read.format("delta").table(self.delta_table_path)
+        
+        # Apply filters
+        if start_date:
+            df = df.filter(col("UsageDateTime") >= start_date)
+        if end_date:
+            df = df.filter(col("UsageDateTime") <= end_date)
+        if category:
+            df = df.filter(col("MeterCategory") == category)
+        
+        logger.info(f"Loaded {df.count()} records")
+        return df
+    
+    def get_data_profile(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Get data profile (Section 3.3.1)
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Dictionary with data profile information
+        """
+        total_records = df.count()
+        
+        # Date range
+        date_stats = df.agg(
+            {"UsageDateTime": "min", "UsageDateTime": "max"}
+        ).collect()[0]
+        
+        # Regional distribution
+        region_dist = df.groupBy("ResourceLocation").agg(
+            count("*").alias("count"),
+            spark_sum("PreTaxCost").alias("total_cost")
+        ).toPandas()
+        
+        # Category distribution
+        category_dist = df.groupBy("MeterCategory").agg(
+            count("*").alias("count"),
+            spark_sum("PreTaxCost").alias("total_cost")
+        ).toPandas()
+        
+        profile = {
+            "total_records": total_records,
+            "date_range": {
+                "start": date_stats.get("min(UsageDateTime)"),
+                "end": date_stats.get("max(UsageDateTime)")
+            },
+            "regional_distribution": region_dist.to_dict("records"),
+            "category_distribution": category_dist.to_dict("records")
+        }
+        
+        return profile
+    
+    def validate_data_availability(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Validate data availability and constraints (Section 3.1.2)
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Validation results
+        """
+        total_records = df.count()
+        
+        # Check for missing dates
+        date_range = df.agg(
+            {"UsageDateTime": "min", "UsageDateTime": "max"}
+        ).collect()[0]
+        
+        # Check data freshness (Section 3.1.4)
+        from datetime import datetime, timedelta
+        latest_date = date_range.get("max(UsageDateTime)")
+        if latest_date:
+            hours_since_update = (datetime.now() - latest_date).total_seconds() / 3600
+            is_fresh = hours_since_update <= data_config.max_data_delay_hours
+        else:
+            is_fresh = False
+            hours_since_update = None
+        
+        validation = {
+            "total_records": total_records,
+            "data_freshness": {
+                "latest_date": latest_date,
+                "hours_since_update": hours_since_update,
+                "is_fresh": is_fresh
+            },
+            "meets_minimum_requirement": total_records > 0
+        }
+        
+        return validation
+    
+    def map_attributes(self) -> Dict[str, str]:
+        """
+        Get attribute mapping (Section 3.1.3)
+        
+        Returns:
+            Dictionary mapping source to target attributes
+        """
+        return {
+            "SubscriptionGuid": "SubscriptionGuid",
+            "ResourceGroup": "ResourceGroup",
+            "ResourceLocation": "ResourceLocation",
+            "UsageDateTime": "UsageDateTime",
+            "MeterCategory": "MeterCategory",
+            "MeterSubCategory": "MeterSubCategory",
+            "MeterId": "MeterId",
+            "MeterName": "MeterName",
+            "MeterRegion": "MeterRegion",
+            "UsageQuantity": "UsageQuantity",
+            "ResourceRate": "ResourceRate",
+            "PreTaxCost": "PreTaxCost",  # Target variable
+            "ConsumedService": "ConsumedService",
+            "ResourceType": "ResourceType",
+            "InstanceId": "InstanceId",
+            "Tags": "Tags",
+            "OfferId": "OfferId",
+            "AdditionalInfo": "AdditionalInfo",
+            "ServiceInfo1": "ServiceInfo1",
+            "ServiceInfo2": "ServiceInfo2",
+            "ServiceName": "ServiceName",
+            "ServiceTier": "ServiceTier",
+            "Currency": "Currency",
+            "UnitOfMeasure": "UnitOfMeasure"
+        }
+
+
