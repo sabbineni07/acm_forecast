@@ -55,6 +55,11 @@ If you have a Databricks job that extracts data to a Delta table:
 # - Database: cost_management
 # - Table: amortized_costs
 # - Path: azure_cost_management.amortized_costs
+#
+# This uses the data_source module:
+# from src.data.data_source import DataSource
+# data_source = DataSource(spark)
+# df = data_source.load_from_delta(start_date="2023-01-01", end_date="2024-01-01")
 ```
 
 ### 2.2 Option B: Using Sample Data (Testing)
@@ -66,6 +71,7 @@ If you want to test with sample data first:
 from pyspark.sql import SparkSession
 from src.data.data_source import DataSource
 from src.data.data_preparation import DataPreparation
+from src.data.data_quality import DataQualityValidator
 import pandas as pd
 
 # Initialize Spark
@@ -79,11 +85,55 @@ sample_data = spark.read.csv("data/sample_azure_costs.csv", header=True, inferSc
 
 # Save to Delta format for testing (optional)
 sample_data.write.format("delta").mode("overwrite").saveAsTable("cost_management.test_amortized_costs")
+
+# Test data quality validation
+quality_validator = DataQualityValidator(spark)
+quality_results = quality_validator.comprehensive_validation(sample_data)
+print(f"Data quality score: {quality_results['quality_score']:.2f}%")
 ```
 
 ## Step 3: Run Training Pipeline
 
-### 3.1 Create Training Script
+### 3.1 Understanding the Pipeline Architecture
+
+The training pipeline uses the following modular components:
+
+1. **`data_source`** (`src/data/data_source.py`): 
+   - Loads data from Databricks Delta tables
+   - Handles data mapping and validation
+   - Used in: `TrainingPipeline.data_source.load_from_delta()`
+
+2. **`data_quality`** (`src/data/data_quality.py`):
+   - Validates data completeness, accuracy, consistency, and timeliness
+   - Calculates data quality scores
+   - Used in: `TrainingPipeline.data_quality.comprehensive_validation()`
+
+3. **`data_preparation`** (`src/data/data_preparation.py`):
+   - Aggregates daily costs
+   - Handles missing values and outliers
+   - Splits data into train/validation/test sets
+   - Prepares data for Prophet and ARIMA models
+   - Used in: `TrainingPipeline.data_prep.*`
+
+4. **`feature_engineering`** (`src/data/feature_engineering.py`):
+   - Creates temporal features (year, month, day, cyclical encoding)
+   - Creates lag features (1, 2, 3, 7, 14, 30 days)
+   - Creates rolling window features (mean, std, min, max)
+   - Prepares features for XGBoost model
+   - Used in: `TrainingPipeline.feature_engineer.prepare_xgboost_features()`
+
+5. **`models`** (`src/models/`):
+   - **ProphetForecaster**: Facebook Prophet model
+   - **ARIMAForecaster**: ARIMA/SARIMA model
+   - **XGBoostForecaster**: XGBoost gradient boosting model
+   - Used in: `TrainingPipeline.prophet_forecaster`, `arima_forecaster`, `xgboost_forecaster`
+
+6. **`evaluation`** (`src/evaluation/`):
+   - **ModelEvaluator**: Calculates performance metrics (RMSE, MAE, MAPE, R²)
+   - **ModelComparator**: Compares multiple models and selects best
+   - Used in: `TrainingPipeline.evaluator`, `TrainingPipeline.comparator`
+
+### 3.2 Create Training Script
 
 Create a file `run_training.py`:
 
@@ -194,6 +244,21 @@ python run_training.py
 2024-01-15 10:00:05 - __main__ - INFO - ============================================================
 2024-01-15 10:00:05 - src.pipeline.training_pipeline - INFO - Starting training pipeline for Total
 2024-01-15 10:00:05 - src.pipeline.training_pipeline - INFO - Step 1: Loading data from Delta table
+2024-01-15 10:00:10 - src.data.data_source - INFO - Loading data from azure_cost_management.amortized_costs
+2024-01-15 10:00:15 - src.pipeline.training_pipeline - INFO - Step 2: Validating data quality
+2024-01-15 10:00:16 - src.data.data_quality - INFO - Performing comprehensive data quality validation
+2024-01-15 10:00:20 - src.pipeline.training_pipeline - INFO - Step 3: Aggregating daily costs
+2024-01-15 10:00:25 - src.pipeline.training_pipeline - INFO - Step 4: Preparing data
+2024-01-15 10:00:26 - src.pipeline.training_pipeline - INFO - Step 5: Splitting data
+2024-01-15 10:00:27 - src.pipeline.training_pipeline - INFO - Step 6: Training models
+2024-01-15 10:00:27 - src.pipeline.training_pipeline - INFO - Training Prophet model
+2024-01-15 10:00:30 - src.models.prophet_model - INFO - Training Prophet model for Total with 365 records
+2024-01-15 10:01:00 - src.pipeline.training_pipeline - INFO - Training ARIMA model
+2024-01-15 10:01:05 - src.models.arima_model - INFO - Training ARIMA model for Total with 365 records
+2024-01-15 10:02:00 - src.pipeline.training_pipeline - INFO - Training XGBoost model
+2024-01-15 10:02:05 - src.data.feature_engineering - INFO - Prepared 25 features for XGBoost
+2024-01-15 10:02:10 - src.models.xgboost_model - INFO - Training XGBoost model for Total
+2024-01-15 10:03:00 - src.evaluation.model_evaluator - INFO - Evaluated Prophet: MAPE=8.50%, R²=0.8500
 ...
 ```
 
