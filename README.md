@@ -96,8 +96,8 @@ forecasts = forecast_pipeline.generate_forecasts(category="Compute", horizons=[3
 ## Documentation
 
 - [Source Code Documentation](acm_forecast/README.md) - Detailed source code documentation
-- [Model Documentation](MODEL_DOCUMENTATION.md) - Complete model documentation
-- [Module Usage Guide](MODULE_USAGE_GUIDE.md) - How to use each module
+- [Model Documentation](acm_forecast/MODEL_DOCUMENTATION.md) - Complete model documentation
+- [Module Usage Guide](acm_forecast/MODULE_USAGE_GUIDE.md) - How to use each module
 - [Run Forecast Guide](acm_forecast/examples/RUN_FORECAST_GUIDE.md) - Guide for generating forecasts
 - [Installation Guide](INSTALLATION.md) - Installation and setup instructions
 

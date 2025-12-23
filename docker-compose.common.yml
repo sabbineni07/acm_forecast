@@ -1,0 +1,50 @@
+# Common services shared between development and production
+# This file contains services that are used by both dev and prod environments
+
+version: '3.8'
+
+services:
+  # MLflow Tracking Server (shared service)
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.8.1
+    container_name: acm-forecast-mlflow
+    ports:
+      - "5001:5000"  # Changed from 5000 to 5001 to avoid conflict with macOS AirPlay
+    volumes:
+      - mlflow-data:/mlflow
+      - ./mlruns:/mlruns
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=file:/mlflow
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=file:/mlflow/artifacts
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri file:/mlflow --default-artifact-root file:/mlflow/artifacts
+    networks:
+      - acm-network
+    restart: unless-stopped
+
+  # Azure Blob Storage Emulator (Azurite) - Optional, shared service
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: acm-forecast-azurite
+    ports:
+      - "10000:10000"  # Blob service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    volumes:
+      - azurite-data:/data
+    command: azurite --blobHost 0.0.0.0 --blobPort 10000 --queueHost 0.0.0.0 --queuePort 10001 --tableHost 0.0.0.0 --tablePort 10002 --location /data --debug /data/debug.log
+    networks:
+      - acm-network
+    profiles:
+      - with-azurite  # Only start when explicitly requested (for local Azure ADLS testing)
+    restart: unless-stopped
+
+volumes:
+  mlflow-data:
+    driver: local
+  azurite-data:
+    driver: local
+
+networks:
+  acm-network:
+    driver: bridge
+

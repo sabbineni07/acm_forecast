@@ -1,0 +1,58 @@
+# Example docker-compose override for Azure ADLS Gen2 configuration
+# Copy this to docker-compose.override.yml and configure with your Azure credentials
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.override.yml up
+
+version: '3.8'
+
+services:
+  mlflow:
+    # Configure MLflow to use Azure ADLS Gen2 for artifact storage with Service Principal
+    environment:
+      # Azure ADLS Gen2 Storage Account name
+      - AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME:-your-storage-account}
+      
+      # Service Principal authentication (replaces account key)
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      
+      # MLflow configuration for Azure ADLS Gen2
+      - MLFLOW_BACKEND_STORE_URI=file:/mlflow
+      # For ADLS Gen2, use abfss:// protocol (Azure Blob File System Secure)
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=abfss://${AZURE_CONTAINER_NAME:-mlflow-artifacts}@${AZURE_STORAGE_ACCOUNT_NAME}.dfs.core.windows.net/mlflow/
+    
+    # Install Azure storage libraries if needed
+    # This would require a custom MLflow image or mounting a script
+
+  acm-forecast:
+    environment:
+      # Point to Azure ADLS Gen2 for MLflow artifacts
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}
+      - AZURE_STORAGE_CONTAINER=${AZURE_CONTAINER_NAME:-mlflow-artifacts}
+      
+      # Service Principal authentication
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+
+  acm-forecast-dev:
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}
+      
+      # Service Principal authentication
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+
+  jupyter:
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - AZURE_STORAGE_ACCOUNT_NAME=${AZURE_STORAGE_ACCOUNT_NAME}
+      
+      # Service Principal authentication
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+

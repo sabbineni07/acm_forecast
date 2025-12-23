@@ -1,0 +1,32 @@
+# Production environment Docker Compose configuration
+# Includes common services automatically
+# Usage: docker compose -f docker-compose.prod.yml up
+
+include:
+  - docker-compose.common.yml
+
+services:
+  # Production application container
+  acm-forecast-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    container_name: acm-forecast-app
+    volumes:
+      - ./acm_forecast:/app/acm_forecast
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+      - ./acm_forecast/config/config.yaml:/app/acm_forecast/config/config.yaml:ro
+    environment:
+      - PYTHONPATH=/app
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - SPARK_HOME=/opt/spark
+    depends_on:
+      - mlflow
+    networks:
+      - acm-network
+    command: tail -f /dev/null  # Keep container running for interactive use
+    restart: unless-stopped
+

@@ -1,0 +1,57 @@
+# Development environment Docker Compose configuration
+# Includes common services automatically
+# Usage: docker compose -f docker-compose.dev.yml up
+
+include:
+  - docker-compose.common.yml
+
+services:
+  # Development environment with all dev tools
+  acm-forecast-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: acm-forecast-dev
+    volumes:
+      - ./acm_forecast:/app/acm_forecast
+      - ./tests:/app/tests
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+      - ./acm_forecast/config/config.yaml:/app/acm_forecast/config/config.yaml:ro
+    environment:
+      - PYTHONPATH=/app
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    networks:
+      - acm-network
+    command: tail -f /dev/null
+    restart: unless-stopped
+
+  # Jupyter Lab for interactive development (dev-only)
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: jupyter
+    container_name: acm-forecast-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./acm_forecast:/app/acm_forecast
+      - ./tests:/app/tests
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./acm_forecast/config/config.yaml:/app/acm_forecast/config/config.yaml:ro
+    environment:
+      - PYTHONPATH=/app
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    networks:
+      - acm-network
+    restart: unless-stopped
+

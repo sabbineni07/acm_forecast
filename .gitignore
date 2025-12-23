@@ -84,3 +84,9 @@ coverage.xml
 *.cover
 .hypothesis/
 
+# Docker
+docker-compose.override.yml
+.docker/
+.env.azure
+.env.azure.local
+

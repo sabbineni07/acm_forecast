@@ -1,0 +1,112 @@
+# Docker Compose - Development environment (default)
+# This file combines common services with development-specific services
+# For backward compatibility, this is the default docker-compose.yml
+#
+# Usage:
+#   Development: docker compose up (or make docker-up-dev)
+#   Production:  docker compose -f docker-compose.prod.yml up
+#
+# The structure is now split into:
+#   - docker-compose.common.yml: Shared services (mlflow, azurite, networks, volumes)
+#   - docker-compose.dev.yml: Development services (acm-forecast-dev, jupyter)
+#   - docker-compose.prod.yml: Production services (acm-forecast-app)
+#
+# This file includes both common and dev services for backward compatibility
+
+version: '3.8'
+
+# Include common services
+services:
+  # MLflow Tracking Server (shared service)
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.8.1
+    container_name: acm-forecast-mlflow
+    ports:
+      - "5001:5000"  # Changed from 5000 to 5001 to avoid conflict with macOS AirPlay
+    volumes:
+      - mlflow-data:/mlflow
+      - ./mlruns:/mlruns
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=file:/mlflow
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=file:/mlflow/artifacts
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri file:/mlflow --default-artifact-root file:/mlflow/artifacts
+    networks:
+      - acm-network
+    restart: unless-stopped
+
+  # Development environment with all dev tools
+  acm-forecast-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: acm-forecast-dev
+    volumes:
+      - ./acm_forecast:/app/acm_forecast
+      - ./tests:/app/tests
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./logs:/app/logs
+      - ./acm_forecast/config/config.yaml:/app/acm_forecast/config/config.yaml:ro
+    environment:
+      - PYTHONPATH=/app
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    networks:
+      - acm-network
+    command: tail -f /dev/null
+    restart: unless-stopped
+
+  # Jupyter Lab for interactive development
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: jupyter
+    container_name: acm-forecast-jupyter
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./acm_forecast:/app/acm_forecast
+      - ./tests:/app/tests
+      - ./notebooks:/app/notebooks
+      - ./data:/app/data
+      - ./outputs:/app/outputs
+      - ./acm_forecast/config/config.yaml:/app/acm_forecast/config/config.yaml:ro
+    environment:
+      - PYTHONPATH=/app
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    networks:
+      - acm-network
+    restart: unless-stopped
+
+  # Azure Blob Storage Emulator (Azurite) - Optional
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: acm-forecast-azurite
+    ports:
+      - "10000:10000"  # Blob service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    volumes:
+      - azurite-data:/data
+    command: azurite --blobHost 0.0.0.0 --blobPort 10000 --queueHost 0.0.0.0 --queuePort 10001 --tableHost 0.0.0.0 --tablePort 10002 --location /data --debug /data/debug.log
+    networks:
+      - acm-network
+    profiles:
+      - with-azurite  # Only start when explicitly requested (for local Azure ADLS testing)
+    restart: unless-stopped
+
+volumes:
+  mlflow-data:
+    driver: local
+  azurite-data:
+    driver: local
+
+networks:
+  acm-network:
+    driver: bridge
+
