@@ -3,7 +3,7 @@ Training Pipeline
 Section 7.1: Data Flow and Model Ingestion Diagram
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 import pandas as pd
 from pyspark.sql import SparkSession
 import logging
@@ -18,7 +18,7 @@ from ..models.xgboost_model import XGBoostForecaster
 from ..evaluation.model_evaluator import ModelEvaluator
 from ..evaluation.model_comparison import ModelComparator
 from ..registry.model_registry import ModelRegistry
-from ..config.settings import data_config, feature_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,21 +29,23 @@ class TrainingPipeline:
     Section 7.1: Data Flow and Model Ingestion Diagram
     """
     
-    def __init__(self, spark: Optional[SparkSession] = None):
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
         """
         Initialize training pipeline
         
         Args:
+            config: AppConfig instance containing configuration
             spark: SparkSession for Databricks environment
         """
+        self.config = config
         self.spark = spark
         
         # Initialize components
-        self.data_source = DataSource(spark)
-        self.data_prep = DataPreparation(spark)
-        self.data_quality = DataQualityValidator(spark)
-        self.feature_engineer = FeatureEngineer(spark)
-        self.model_registry = ModelRegistry()
+        self.data_source = DataSource(config, spark)
+        self.data_prep = DataPreparation(config, spark)
+        self.data_quality = DataQualityValidator(config, spark)
+        self.feature_engineer = FeatureEngineer(config, spark)
+        self.model_registry = ModelRegistry(config)
         
         # Models
         self.prophet_forecaster = None
@@ -51,13 +53,13 @@ class TrainingPipeline:
         self.xgboost_forecaster = None
         
         # Evaluation
-        self.evaluator = ModelEvaluator()
-        self.comparator = ModelComparator()
+        self.evaluator = ModelEvaluator(config)
+        self.comparator = ModelComparator(config)
     
     def run(self,
            category: str = "Total",
            start_date: Optional[str] = None,
-           end_date: Optional[str] = None) -> Dict[str, any]:
+           end_date: Optional[str] = None) -> Dict[str, Any]:
         """
         Run complete training pipeline
         
@@ -119,7 +121,7 @@ class TrainingPipeline:
         try:
             logger.info("Training Prophet model")
             prophet_data = self.data_prep.prepare_for_prophet(train_df)
-            self.prophet_forecaster = ProphetForecaster(category)
+            self.prophet_forecaster = ProphetForecaster(self.config, category)
             self.prophet_forecaster.train(prophet_data)
             
             # Evaluate
@@ -139,7 +141,7 @@ class TrainingPipeline:
         try:
             logger.info("Training ARIMA model")
             arima_data = self.data_prep.prepare_for_arima(train_df)
-            self.arima_forecaster = ARIMAForecaster(category)
+            self.arima_forecaster = ARIMAForecaster(self.config, category)
             self.arima_forecaster.train(arima_data)
             
             # Evaluate
@@ -159,7 +161,7 @@ class TrainingPipeline:
         try:
             logger.info("Training XGBoost model")
             xgboost_data = self.feature_engineer.prepare_xgboost_features(train_df)
-            self.xgboost_forecaster = XGBoostForecaster(category)
+            self.xgboost_forecaster = XGBoostForecaster(self.config, category)
             self.xgboost_forecaster.train(xgboost_data)
             
             # Evaluate
@@ -167,7 +169,7 @@ class TrainingPipeline:
                 self.feature_engineer.prepare_xgboost_features(test_df)
             )
             xgboost_metrics = self.xgboost_forecaster.evaluate(
-                xgboost_forecast, test_df[feature_config.target_column].values
+                xgboost_forecast, test_df[self.config.feature.target_column].values
             )
             results['xgboost'] = {
                 'model': self.xgboost_forecaster,

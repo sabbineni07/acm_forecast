@@ -10,7 +10,7 @@ import numpy as np
 import logging
 
 from .performance_metrics import PerformanceMetrics
-from ..config.settings import performance_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +21,14 @@ class ModelEvaluator:
     Section 6.1: Model Performance
     """
     
-    def __init__(self):
-        """Initialize model evaluator"""
+    def __init__(self, config: AppConfig):
+        """
+        Initialize model evaluator
+        
+        Args:
+            config: AppConfig instance containing configuration
+        """
+        self.config = config
         self.metrics_calculator = PerformanceMetrics()
     
     def evaluate_model(self,
@@ -60,8 +66,10 @@ class ModelEvaluator:
         metrics = self.metrics_calculator.calculate_metrics(actual, forecast)
         
         # Add performance assessment
-        metrics['meets_target_mape'] = metrics['mape'] < performance_config.target_mape
-        metrics['meets_target_r2'] = metrics['r2'] > performance_config.target_r2
+        target_mape = self.config.performance.target_mape or 10.0
+        target_r2 = self.config.performance.target_r2 or 0.8
+        metrics['meets_target_mape'] = metrics['mape'] < target_mape
+        metrics['meets_target_r2'] = metrics['r2'] > target_r2
         
         logger.info(f"Evaluated {model_name}: MAPE={metrics['mape']:.2f}%, R²={metrics['r2']:.4f}")
         return metrics

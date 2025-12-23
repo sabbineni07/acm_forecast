@@ -1,0 +1,180 @@
+# Azure Cost Management Forecasting - Configuration File
+# YAML-driven configuration for training and forecasting
+
+# Application name
+name: "azure_cost_forecasting"
+
+# ============================================================================
+# Data Configuration
+# ============================================================================
+data:
+  # Delta table configuration
+  delta_table_path: "azure_cost_management.amortized_costs"
+  database_name: "cost_management"
+  table_name: "amortized_costs"
+  
+  # Data constraints
+  min_historical_months: 12
+  max_data_delay_hours: 168  # 7 days
+  
+  # Regional distribution
+  primary_region: "East US"
+  primary_region_weight: 0.9
+  secondary_region: "South Central US"
+  secondary_region_weight: 0.1
+  
+  # Cost categories
+  cost_categories:
+    - "Compute"
+    - "Storage"
+    - "Network"
+    - "Database"
+    - "Analytics"
+    - "AI/ML"
+    - "Security"
+    - "Management"
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+model:
+  # Prophet Model Configuration
+  prophet:
+    yearly_seasonality: true
+    weekly_seasonality: true
+    daily_seasonality: false
+    seasonality_mode: "multiplicative"  # or "additive"
+    changepoint_prior_scale: 0.05
+    holidays_prior_scale: 10.0
+    uncertainty_samples: 1000
+  
+  # ARIMA Model Configuration
+  arima:
+    seasonal: true
+    seasonal_period: 12  # Monthly seasonality
+    max_p: 5
+    max_d: 2
+    max_q: 5
+    information_criterion: "aic"  # or "bic"
+  
+  # XGBoost Model Configuration
+  xgboost:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    objective: "reg:squarederror"
+    early_stopping_rounds: 10
+
+# ============================================================================
+# Training Configuration
+# ============================================================================
+training:
+  # Data splitting
+  train_split: 0.70      # 70% for training
+  validation_split: 0.15  # 15% for validation
+  test_split: 0.15       # 15% for testing
+  
+  # Minimum data requirements
+  min_training_months: 12
+  recommended_training_months: 18
+  validation_months: 3
+  test_months: 3
+  
+  # Cross-validation
+  cv_initial: "180 days"
+  cv_period: "30 days"
+  cv_horizon: "30 days"
+
+# ============================================================================
+# Feature Engineering Configuration
+# ============================================================================
+feature:
+  # Lag features (days)
+  lag_periods:
+    - 1
+    - 2
+    - 3
+    - 7
+    - 14
+    - 30
+  
+  # Rolling window features (days)
+  rolling_windows:
+    - 3
+    - 7
+    - 14
+    - 30
+  
+  # Column names
+  target_column: "PreTaxCost"
+  date_column: "UsageDateTime"
+
+# ============================================================================
+# Performance Configuration
+# ============================================================================
+performance:
+  # Target metrics
+  target_mape: 10.0  # < 10% MAPE for monthly forecasts
+  target_r2: 0.8     # > 0.8 R²
+  
+  # Alert thresholds
+  warning_mape: 12.0
+  critical_mape: 15.0
+  
+  # Data quality thresholds
+  warning_missing_data: 5.0   # Warning if > 5% missing
+  critical_missing_data: 10.0  # Critical if > 10% missing
+
+# ============================================================================
+# Model Registry Configuration
+# ============================================================================
+registry:
+  # MLflow settings
+  mlflow_tracking_uri: null  # Set via MLFLOW_TRACKING_URI env var or here
+  mlflow_experiment_name: "/Users/team/azure_cost_forecasting"
+  
+  # Model names
+  prophet_model_name: "azure_cost_forecast_prophet"
+  arima_model_name: "azure_cost_forecast_arima"
+  xgboost_model_name: "azure_cost_forecast_xgboost"
+  
+  # Model stages
+  model_stages:
+    - "None"
+    - "Staging"
+    - "Production"
+
+# ============================================================================
+# Monitoring Configuration
+# ============================================================================
+monitoring:
+  # Retraining schedule
+  monthly_retraining: true
+  quarterly_retraining: true
+  retraining_trigger_mape: 15.0  # Retrain if MAPE > 15%
+  max_months_without_retraining: 6
+  
+  # Monitoring frequency
+  realtime_monitoring: true
+  daily_reports: true
+  weekly_reports: true
+  monthly_reports: true
+
+# ============================================================================
+# Forecast Configuration
+# ============================================================================
+forecast:
+  # Forecast horizons (days)
+  forecast_horizons_days:
+    - 30   # 1 month
+    - 90   # 3 months
+    - 180  # 6 months
+    - 365  # 12 months
+  
+  # Granularity
+  daily_forecasts: true
+  weekly_forecasts: true
+  monthly_forecasts: true
+

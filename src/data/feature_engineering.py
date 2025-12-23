@@ -14,7 +14,7 @@ from pyspark.sql.functions import (
 )
 import logging
 
-from ..config.settings import feature_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +25,15 @@ class FeatureEngineer:
     Section 3.3.4: Variable Creation
     """
     
-    def __init__(self, spark: Optional[SparkSession] = None):
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
         """
         Initialize feature engineer
         
         Args:
+            config: AppConfig instance containing configuration
             spark: SparkSession for Databricks environment
         """
+        self.config = config
         self.spark = spark
     
     def create_temporal_features(self, df: pd.DataFrame,
@@ -94,7 +96,7 @@ class FeatureEngineer:
             DataFrame with lag features
         """
         if lags is None:
-            lags = feature_config.lag_periods
+            lags = self.config.feature.lag_periods or [1, 2, 3, 7, 14, 30]
         
         df_lags = df.copy()
         df_lags = df_lags.sort_values('UsageDateTime')
@@ -131,7 +133,7 @@ class FeatureEngineer:
             DataFrame with rolling features
         """
         if windows is None:
-            windows = feature_config.rolling_windows
+            windows = self.config.feature.rolling_windows or [3, 7, 14, 30]
         
         df_rolling = df.copy()
         df_rolling = df_rolling.sort_values('UsageDateTime')

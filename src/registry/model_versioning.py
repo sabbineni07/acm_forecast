@@ -3,12 +3,12 @@ Model Versioning Module
 Section 7.3: Access, Versioning and Controls Description
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import logging
 from datetime import datetime
 
 from .model_registry import ModelRegistry
-from ..config.settings import registry_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +19,16 @@ class ModelVersioning:
     Section 7.3: Access, Versioning and Controls Description
     """
     
-    def __init__(self, registry: Optional[ModelRegistry] = None):
+    def __init__(self, config: AppConfig, registry: Optional[ModelRegistry] = None):
         """
         Initialize model versioning
         
         Args:
+            config: AppConfig instance containing configuration
             registry: ModelRegistry instance
         """
-        self.registry = registry or ModelRegistry()
+        self.config = config
+        self.registry = registry or ModelRegistry(config)
     
     def create_version_tag(self,
                           category: str,
@@ -59,7 +61,7 @@ class ModelVersioning:
     def compare_versions(self,
                        model_name: str,
                        version1: str,
-                       version2: str) -> Dict[str, any]:
+                       version2: str) -> Dict[str, Any]:
         """
         Compare two model versions
         

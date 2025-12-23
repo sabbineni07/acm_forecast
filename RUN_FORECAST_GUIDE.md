@@ -135,7 +135,7 @@ The training pipeline uses the following modular components:
 
 ### 3.2 Create Training Script
 
-Create a file `run_training.py`:
+Create a file `src/examples/run_training.py`:
 
 ```python
 """
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 ### 3.2 Run Training
 
 ```bash
-python run_training.py
+python src/examples/run_training.py
 ```
 
 **Expected Output:**
@@ -266,7 +266,7 @@ python run_training.py
 
 ### 4.1 Create Forecast Script
 
-Create a file `run_forecast.py`:
+Create a file `src/examples/run_forecast.py`:
 
 ```python
 """
@@ -389,12 +389,12 @@ if __name__ == "__main__":
 ### 4.2 Run Forecast Generation
 
 ```bash
-python run_forecast.py
+python src/examples/run_forecast.py
 ```
 
 ## Step 5: Complete End-to-End Script
 
-For a complete workflow, create `run_complete_pipeline.py`:
+For a complete workflow, create `src/examples/run_complete_pipeline.py`:
 
 ```python
 """
@@ -515,7 +515,7 @@ if __name__ == "__main__":
 
 ```bash
 # Run complete pipeline
-python run_complete_pipeline.py
+python src/examples/run_complete_pipeline.py
 
 # Check logs
 tail -f forecast_pipeline.log
@@ -649,13 +649,13 @@ source venv/bin/activate
 export JAVA_HOME=/path/to/java
 
 # 2. Training only
-python run_training.py
+python src/examples/run_training.py
 
 # 3. Forecast generation only (requires trained models)
-python run_forecast.py
+python src/examples/run_forecast.py
 
 # 4. Complete pipeline (training + forecasting)
-python run_complete_pipeline.py
+python src/examples/run_complete_pipeline.py
 
 # 5. View MLflow models
 mlflow ui --port 5000

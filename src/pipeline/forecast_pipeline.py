@@ -3,14 +3,14 @@ Forecast Pipeline
 Section 7.1: Data Flow and Model Ingestion Diagram
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, Any, List
 import pandas as pd
 from pyspark.sql import SparkSession
 import logging
 
 from ..registry.model_registry import ModelRegistry
 from ..monitoring.performance_monitor import PerformanceMonitor
-from ..config.settings import forecast_config, registry_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -21,21 +21,23 @@ class ForecastPipeline:
     Section 7.1: Data Flow and Model Ingestion Diagram
     """
     
-    def __init__(self, spark: Optional[SparkSession] = None):
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
         """
         Initialize forecast pipeline
         
         Args:
+            config: AppConfig instance containing configuration
             spark: SparkSession for Databricks environment
         """
+        self.config = config
         self.spark = spark
-        self.model_registry = ModelRegistry()
-        self.performance_monitor = PerformanceMonitor()
+        self.model_registry = ModelRegistry(config)
+        self.performance_monitor = PerformanceMonitor(config)
     
     def generate_forecasts(self,
                           category: str = "Total",
                           horizons: Optional[List[int]] = None,
-                          model_name: Optional[str] = None) -> Dict[str, any]:
+                          model_name: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate forecasts using production models
         
@@ -48,7 +50,7 @@ class ForecastPipeline:
             Dictionary with forecasts
         """
         if horizons is None:
-            horizons = forecast_config.forecast_horizons_days
+            horizons = self.config.forecast.forecast_horizons_days or [30, 90, 180, 365]
         
         logger.info(f"Generating forecasts for {category}")
         
@@ -82,9 +84,9 @@ class ForecastPipeline:
         """
         # This would query model registry for best performing model
         # Default to ensemble or most recent
-        return registry_config.prophet_model_name
+        return self.config.registry.prophet_model_name or "azure_cost_forecast_prophet"
     
-    def _generate_forecast(self, model: any, horizon: int, category: str) -> pd.DataFrame:
+    def _generate_forecast(self, model: Any, horizon: int, category: str) -> pd.DataFrame:
         """
         Generate forecast using model
         

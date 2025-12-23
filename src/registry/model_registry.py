@@ -8,7 +8,7 @@ import mlflow
 from mlflow.tracking import MlflowClient
 import logging
 
-from ..config.settings import registry_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +19,22 @@ class ModelRegistry:
     Section 7.2: Model Registry Configuration in Databricks
     """
     
-    def __init__(self, tracking_uri: Optional[str] = None):
+    def __init__(self, config: AppConfig, tracking_uri: Optional[str] = None):
         """
         Initialize model registry
         
         Args:
-            tracking_uri: MLflow tracking URI (default: from config)
+            config: AppConfig instance containing configuration
+            tracking_uri: MLflow tracking URI (optional override)
         """
+        self.config = config
         if tracking_uri:
             mlflow.set_tracking_uri(tracking_uri)
-        elif registry_config.mlflow_tracking_uri:
-            mlflow.set_tracking_uri(registry_config.mlflow_tracking_uri)
+        elif config.registry.mlflow_tracking_uri:
+            mlflow.set_tracking_uri(config.registry.mlflow_tracking_uri)
         
         self.client = MlflowClient()
-        self.experiment_name = registry_config.mlflow_experiment_name
+        self.experiment_name = config.registry.mlflow_experiment_name
         
         # Set experiment
         try:

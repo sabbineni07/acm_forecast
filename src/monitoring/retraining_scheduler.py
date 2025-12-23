@@ -3,11 +3,11 @@ Retraining Scheduler Module
 Section 8.3: Model Retraining Schedule
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, Any, List
 from datetime import datetime, timedelta
 import logging
 
-from ..config.settings import monitoring_config, performance_config
+from ..config import AppConfig
 from ..monitoring.performance_monitor import PerformanceMonitor
 
 logger = logging.getLogger(__name__)
@@ -19,21 +19,23 @@ class RetrainingScheduler:
     Section 8.3: Model Retraining Schedule
     """
     
-    def __init__(self, performance_monitor: Optional[PerformanceMonitor] = None):
+    def __init__(self, config: AppConfig, performance_monitor: Optional[PerformanceMonitor] = None):
         """
         Initialize retraining scheduler
         
         Args:
+            config: AppConfig instance containing configuration
             performance_monitor: PerformanceMonitor instance
         """
-        self.performance_monitor = performance_monitor or PerformanceMonitor()
+        self.config = config
+        self.performance_monitor = performance_monitor or PerformanceMonitor(config)
         self.last_retraining_date = {}
         self.retraining_history = []
     
     def should_retrain(self,
                       model_name: str,
                       current_mape: Optional[float] = None,
-                      last_retraining: Optional[datetime] = None) -> Dict[str, any]:
+                      last_retraining: Optional[datetime] = None) -> Dict[str, Any]:
         """
         Determine if model should be retrained (Section 8.3)
         
@@ -49,7 +51,8 @@ class RetrainingScheduler:
         should_retrain = False
         
         # Check performance degradation
-        if current_mape and current_mape > monitoring_config.retraining_trigger_mape:
+        trigger_mape = self.config.monitoring.retraining_trigger_mape or 15.0
+        if current_mape and current_mape > trigger_mape:
             triggers.append("performance_degradation")
             should_retrain = True
         
@@ -59,17 +62,20 @@ class RetrainingScheduler:
                 (datetime.now() - last_retraining).days / 30
             )
             
-            if months_since_retraining >= monitoring_config.max_months_without_retraining:
+            max_months = self.config.monitoring.max_months_without_retraining or 6
+            if months_since_retraining >= max_months:
                 triggers.append("time_based")
                 should_retrain = True
             
             # Monthly retraining
-            if monitoring_config.monthly_retraining and months_since_retraining >= 1:
+            monthly_retraining = self.config.monitoring.monthly_retraining
+            if monthly_retraining and months_since_retraining >= 1:
                 triggers.append("monthly_schedule")
                 should_retrain = True
             
             # Quarterly retraining
-            if monitoring_config.quarterly_retraining and months_since_retraining >= 3:
+            quarterly_retraining = self.config.monitoring.quarterly_retraining
+            if quarterly_retraining and months_since_retraining >= 3:
                 triggers.append("quarterly_schedule")
                 should_retrain = True
         else:
@@ -93,7 +99,7 @@ class RetrainingScheduler:
     
     def schedule_retraining(self,
                            model_name: str,
-                           retraining_date: Optional[datetime] = None) -> Dict[str, any]:
+                           retraining_date: Optional[datetime] = None) -> Dict[str, Any]:
         """
         Schedule model retraining
         

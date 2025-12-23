@@ -1,103 +1,109 @@
 # Azure Cost Management Forecasting Project
 
-This project implements multiple forecasting models for Azure cost management using both **Pandas** and **PySpark** implementations for different use cases.
+This project implements multiple forecasting models for Azure cost management using a modular, production-ready architecture built with PySpark.
 
 ## 🏗️ Project Structure
 
 ```
-acm/
-├── README.md                    # This file
-├── requirements.txt             # Main requirements
-├── pandas/                      # Pandas implementation
-│   ├── README.md
-│   ├── requirements.txt
-│   ├── notebooks/               # Jupyter notebooks
-│   ├── data/                    # Generated data files
-│   └── utils/                   # Utility functions
-├── pyspark/                     # PySpark implementation
-│   ├── README.md
-│   ├── requirements.txt
-│   ├── notebooks/               # PySpark scripts
-│   ├── data/                    # Generated data files
-│   └── utils/                   # Utility functions
-└── docs/                        # Documentation
-    ├── QUICK_START.md
-    ├── LOCAL_SETUP_GUIDE.md
-    └── PLOTLY_SUBPLOT_FIX.md
+acm_forecast/
+├── src/                      # Main source code
+│   ├── config/              # Configuration settings
+│   ├── data/                # Data processing modules
+│   ├── models/              # Forecasting models (Prophet, ARIMA, XGBoost)
+│   ├── evaluation/          # Model evaluation and comparison
+│   ├── registry/            # Model registry (MLflow integration)
+│   ├── monitoring/          # Model monitoring and retraining
+│   └── pipeline/            # Training and forecast pipelines
+├── src/
+│   └── examples/            # Example scripts
+│       ├── run_training.py          # Training pipeline script
+│       ├── run_forecast.py          # Forecast generation script
+│       └── run_complete_pipeline.py # End-to-end pipeline script
+└── requirements.txt         # Python dependencies
 ```
-
-## 🎯 Two Implementation Approaches
-
-### 📊 **Pandas Implementation** (`pandas/`)
-- **Best for**: Single-machine processing, interactive analysis, rapid prototyping
-- **Technology**: Pandas, NumPy, Jupyter notebooks
-- **Use cases**: Development, testing, small to medium datasets
-- **Performance**: Optimized for single-machine workflows
-
-### ⚡ **PySpark Implementation** (`pyspark/`)
-- **Best for**: Large-scale processing, production environments, distributed computing
-- **Technology**: PySpark, distributed processing, cluster computing
-- **Use cases**: Big data, production, scalable processing
-- **Performance**: Optimized for distributed and parallel processing
-- **Optimized versions**: Available with pure PySpark DataFrames for 3-5x better performance
 
 ## 🚀 Features
 
-- **Sample Data Generation**: Creates realistic Azure cost data with all required attributes
-  - **Regional Focus**: 90% East US, 10% South Central US regions
-  - **Currency**: USD only for consistent cost analysis
 - **Multiple Forecasting Models**:
   - Prophet (Facebook's time series forecasting)
   - ARIMA (AutoRegressive Integrated Moving Average)
   - XGBoost (Gradient Boosting)
-- **Comprehensive Visualizations**: Interactive charts and plots for model comparison
-- **Dual Implementation**: Both Pandas and PySpark versions available
-
-## Data Attributes
-
-The project works with the following Azure cost management attributes:
-- SubscriptionGuid, ResourceGroup, ResourceLocation
-- UsageDateTime, MeterCategory, MeterSubCategory
-- MeterId, MeterName, MeterRegion, UsageQuantity
-- ResourceRate, PreTaxCost, ConsumedService, ResourceType
-- InstanceId, Tags, OfferId, AdditionalInfo
-- ServiceInfo1, ServiceInfo2, ServiceName, ServiceTier
-- Currency, UnitOfMeasure
+- **Production-Ready Architecture**: Modular design with clear separation of concerns
+- **Model Registry**: MLflow integration for model versioning and deployment
+- **Monitoring**: Performance monitoring, data drift detection, and automated retraining
+- **PySpark-Based**: Scalable distributed processing for large datasets
 
 ## 🚀 Getting Started
 
-### **Choose Your Implementation:**
+### Installation
 
-#### **Option 1: Pandas (Recommended for Development)**
+See [INSTALLATION.md](INSTALLATION.md) for detailed installation instructions.
+
 ```bash
-cd /Users/sabbineni/projects/acm/pandas
-python -m venv venv
-source venv/bin/activate
 pip install -r requirements.txt
-jupyter lab
 ```
 
-#### **Option 2: PySpark (Recommended for Production)**
+### Quick Start
+
+#### Training Models
+
 ```bash
-cd /Users/sabbineni/projects/acm/pyspark
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Standard PySpark implementation
-python notebooks/01_data_generation_pyspark.py
-
-# OR Optimized PySpark implementation (3-5x faster)
-python notebooks/01_data_generation_pyspark_optimized.py
+python src/examples/run_training.py
 ```
 
-### **Execute in Order:**
-1. **Data Generation** - Generate sample Azure cost data
-2. **Data Exploration** - Analyze and visualize the data
-3. **Prophet Model** - Facebook's time series forecasting
-4. **ARIMA Model** - Statistical time series forecasting
-5. **XGBoost Model** - Machine learning forecasting
-6. **Model Comparison** - Compare all models and select best
+#### Generating Forecasts
+
+```bash
+python src/examples/run_forecast.py
+```
+
+#### Complete Pipeline
+
+```bash
+python src/examples/run_complete_pipeline.py
+```
+
+## Usage
+
+### Training Pipeline
+
+```python
+from pyspark.sql import SparkSession
+from src.pipeline.training_pipeline import TrainingPipeline
+
+# Initialize Spark
+spark = SparkSession.builder.appName("ACM_Forecasting").getOrCreate()
+
+# Create pipeline
+pipeline = TrainingPipeline(spark)
+
+# Run training
+results = pipeline.run(category="Compute", start_date="2023-01-01", end_date="2024-01-01")
+```
+
+### Forecast Generation
+
+```python
+from src.pipeline.forecast_pipeline import ForecastPipeline
+
+# Create forecast pipeline
+forecast_pipeline = ForecastPipeline(spark)
+
+# Generate forecasts
+forecasts = forecast_pipeline.generate_forecasts(category="Compute", horizons=[30, 90, 180])
+```
+
+## Documentation
+
+- [Source Code Documentation](src/README.md) - Detailed source code documentation
+- [Model Documentation](MODEL_DOCUMENTATION.md) - Complete model documentation
+- [Module Usage Guide](MODULE_USAGE_GUIDE.md) - How to use each module
+- [Run Forecast Guide](RUN_FORECAST_GUIDE.md) - Guide for generating forecasts
+- [Installation Guide](INSTALLATION.md) - Installation and setup instructions
+
+## Configuration
+
+All configuration is managed through `src/config/settings.py`. See [src/README.md](src/README.md) for details.
 
 ## Model Comparison
 
@@ -105,4 +111,5 @@ The project provides comprehensive comparison metrics including:
 - RMSE (Root Mean Square Error)
 - MAE (Mean Absolute Error)
 - MAPE (Mean Absolute Percentage Error)
+- R² (Coefficient of Determination)
 - Visualization of predictions vs actual costs

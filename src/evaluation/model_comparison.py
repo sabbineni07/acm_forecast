@@ -11,7 +11,7 @@ import logging
 
 from .performance_metrics import PerformanceMetrics
 from .model_evaluator import ModelEvaluator
-from ..config.settings import performance_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,15 @@ class ModelComparator:
     Section 5.2.2: Model Selection Criteria
     """
     
-    def __init__(self):
-        """Initialize model comparator"""
-        self.evaluator = ModelEvaluator()
+    def __init__(self, config: AppConfig):
+        """
+        Initialize model comparator
+        
+        Args:
+            config: AppConfig instance containing configuration
+        """
+        self.config = config
+        self.evaluator = ModelEvaluator(config)
         self.metrics_calculator = PerformanceMetrics()
     
     def compare_models(self,

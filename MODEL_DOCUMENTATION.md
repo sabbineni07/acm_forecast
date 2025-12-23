@@ -140,8 +140,8 @@ The forecasting solution consists of three independent models that are trained, 
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              Azure Cost Management Data                   │
-│              (Delta Table - Databricks)                  │
+│              Azure Cost Management Data                 │
+│              (Delta Table - Databricks)                 │
 └──────────────────────┬──────────────────────────────────┘
                        │
                        ▼
@@ -151,18 +151,18 @@ The forecasting solution consists of three independent models that are trained, 
         └──────────────┬───────────────┘
                        │
         ┌──────────────┼──────────────┐
-        │              │               │
-        ▼              ▼               ▼
+        │              │              │
+        ▼              ▼              ▼
    ┌─────────┐   ┌─────────┐   ┌──────────┐
    │ Prophet │   │ ARIMA   │   │ XGBoost  │
    │ Model   │   │ Model   │   │ Model    │
    └────┬────┘   └────┬────┘   └────┬─────┘
-        │             │              │
-        └─────────────┼──────────────┘
+        │             │             │
+        └─────────────┼─────────────┘
                       │
                       ▼
         ┌──────────────────────────────┐
-        │   Model Comparison &        │
+        │   Model Comparison &         │
         │   Performance Evaluation     │
         └──────────────┬───────────────┘
                        │
@@ -1124,24 +1124,24 @@ forecast = model.predict(X_test)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Azure Cost Management API                 │
-│                  (Source System)                             │
+│                    Azure Cost Management API                │
+│                  (Source System)                            │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Databricks Job: Extract & Load                  │
-│              - Scheduled: Daily                              │
-│              - Extract: Azure ACM API                        │
+│              Databricks Job: Extract & Load                 │
+│              - Scheduled: Daily                             │
+│              - Extract: Azure ACM API                       │
 │              - Transform: Data cleaning & validation        │
-│              - Load: Delta table                             │
+│              - Load: Delta table                            │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Delta Table: azure_cost_management.amortized_costs   │
-│         - Bronze Layer: Raw data                             │
-│         - Schema: cost_management database                   │
+│         Delta Table: azure_cost_management.amortized_costs  │
+│         - Bronze Layer: Raw data                            │
+│         - Schema: cost_management database                  │
 │         - Partition: By date (UsageDateTime)                │
 └──────────────────────────┬──────────────────────────────────┘
                            │
@@ -1149,51 +1149,51 @@ forecast = model.predict(X_test)
 ┌─────────────────────────────────────────────────────────────┐
 │         Databricks Notebook: Data Preparation               │
 │         - Aggregate: Daily costs by category                │
-│         - Feature Engineering: Temporal, lag, rolling        │
+│         - Feature Engineering: Temporal, lag, rolling       │
 │         - Validation: Data quality checks                   │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │         Databricks Notebook: Model Training                 │
-│         - Prophet: Train on historical data                  │
-│         - ARIMA: Train on historical data                    │
-│         - XGBoost: Train on historical data                  │
-│         - Evaluation: Cross-validation & metrics           │
+│         - Prophet: Train on historical data                 │
+│         - ARIMA: Train on historical data                   │
+│         - XGBoost: Train on historical data                 │
+│         - Evaluation: Cross-validation & metrics            │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         MLflow Model Registry                                │
-│         - Model Versioning                                   │
-│         - Model Metadata                                     │
-│         - Model Artifacts                                    │
+│         MLflow Model Registry                               │
+│         - Model Versioning                                  │
+│         - Model Metadata                                    │
+│         - Model Artifacts                                   │
 │         - Stage Management (Staging → Production)           │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Databricks Job: Forecast Generation                  │
-│         - Scheduled: Daily/Weekly                            │
-│         - Load: Latest model from registry                    │
-│         - Predict: Generate forecasts                        │
+│         Databricks Job: Forecast Generation                 │
+│         - Scheduled: Daily/Weekly                           │
+│         - Load: Latest model from registry                  │
+│         - Predict: Generate forecasts                       │
 │         - Save: Forecasts to Delta table                    │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Delta Table: Forecasts                               │
-│         - Forecast results                                   │
-│         - Confidence intervals                               │
-│         - Model metadata                                     │
+│         Delta Table: Forecasts                              │
+│         - Forecast results                                  │
+│         - Confidence intervals                              │
+│         - Model metadata                                    │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│         Reporting & Visualization                            │
-│         - Power BI / Tableau dashboards                      │
-│         - Automated reports                                   │
-│         - Alerting system                                    │
+│         Reporting & Visualization                           │
+│         - Power BI / Tableau dashboards                     │
+│         - Automated reports                                 │
+│         - Alerting system                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 

@@ -9,7 +9,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import logging
 
-from ..config.settings import performance_config, monitoring_config
+from ..config import AppConfig
 from ..evaluation.performance_metrics import PerformanceMetrics
 
 logger = logging.getLogger(__name__)
@@ -21,15 +21,21 @@ class PerformanceMonitor:
     Section 8.1: Performance Monitoring
     """
     
-    def __init__(self):
-        """Initialize performance monitor"""
+    def __init__(self, config: AppConfig):
+        """
+        Initialize performance monitor
+        
+        Args:
+            config: AppConfig instance containing configuration
+        """
+        self.config = config
         self.metrics_calculator = PerformanceMetrics()
         self.performance_history = []
     
     def check_forecast_accuracy(self,
                                forecast: np.ndarray,
                                actual: np.ndarray,
-                               model_name: str = "Model") -> Dict[str, any]:
+                               model_name: str = "Model") -> Dict[str, Any]:
         """
         Check forecast accuracy (Section 8.1)
         
@@ -45,10 +51,14 @@ class PerformanceMonitor:
         metrics = self.metrics_calculator.calculate_metrics(actual, forecast)
         
         # Check against thresholds
+        critical_mape = self.config.performance.critical_mape or 15.0
+        warning_mape = self.config.performance.warning_mape or 12.0
+        target_mape = self.config.performance.target_mape or 10.0
+        
         alert_level = "OK"
-        if metrics['mape'] > performance_config.critical_mape:
+        if metrics['mape'] > critical_mape:
             alert_level = "CRITICAL"
-        elif metrics['mape'] > performance_config.warning_mape:
+        elif metrics['mape'] > warning_mape:
             alert_level = "WARNING"
         
         result = {
@@ -56,7 +66,7 @@ class PerformanceMonitor:
             "timestamp": datetime.now(),
             "metrics": metrics,
             "alert_level": alert_level,
-            "meets_target": metrics['mape'] < performance_config.target_mape
+            "meets_target": metrics['mape'] < target_mape
         }
         
         # Store in history
@@ -96,7 +106,7 @@ class PerformanceMonitor:
         
         return df
     
-    def generate_performance_report(self) -> Dict[str, any]:
+    def generate_performance_report(self) -> Dict[str, Any]:
         """
         Generate performance report (Section 8.4)
         

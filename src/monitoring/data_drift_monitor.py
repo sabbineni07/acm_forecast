@@ -51,7 +51,7 @@ class DataDriftMonitor:
     def detect_distribution_drift(self,
                                  current_data: pd.DataFrame,
                                  baseline_name: str = "baseline",
-                                 method: str = "ks") -> Dict[str, any]:
+                                 method: str = "ks") -> Dict[str, Any]:
         """
         Detect distribution drift (Section 8.2)
         
@@ -108,7 +108,7 @@ class DataDriftMonitor:
     
     def detect_feature_drift(self,
                            current_data: pd.DataFrame,
-                           features: Optional[List[str]] = None) -> Dict[str, Dict[str, any]]:
+                           features: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
         """
         Detect drift across multiple features
         

@@ -6,7 +6,7 @@ Section 5.2.3: Final Model Specification - ARIMA
 Section 5.2.4: Model Diagnostics - ARIMA
 """
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any
 import pandas as pd
 import numpy as np
 from pmdarima import auto_arima
@@ -16,7 +16,7 @@ from scipy import stats
 import warnings
 import logging
 
-from ..config.settings import model_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 warnings.filterwarnings('ignore')
@@ -28,20 +28,22 @@ class ARIMAForecaster:
     Section 4.2.1: ARIMA Model Methodology
     """
     
-    def __init__(self, category: str = "Total"):
+    def __init__(self, config: AppConfig, category: str = "Total"):
         """
         Initialize ARIMA forecaster
         
         Args:
+            config: AppConfig instance containing configuration
             category: Cost category name
         """
+        self.config = config
         self.category = category
         self.model = None
         self.is_trained = False
         self.order = None
         self.seasonal_order = None
     
-    def test_stationarity(self, timeseries: pd.Series) -> Dict[str, any]:
+    def test_stationarity(self, timeseries: pd.Series) -> Dict[str, Any]:
         """
         Test stationarity (Section 5.2.4)
         
@@ -101,7 +103,7 @@ class ARIMAForecaster:
         logger.info(f"Applied {diff_order} order differencing for {self.category}")
         return stationary_series, diff_order
     
-    def train(self, timeseries: pd.Series) -> any:
+    def train(self, timeseries: pd.Series) -> Any:
         """
         Train ARIMA model (Section 5.2.1)
         
@@ -114,14 +116,15 @@ class ARIMAForecaster:
         logger.info(f"Training ARIMA model for {self.category} with {len(timeseries)} records")
         
         # Auto-select ARIMA parameters
+        arima_config = self.config.model.arima
         self.model = auto_arima(
             timeseries,
-            seasonal=model_config.arima_seasonal,
-            m=model_config.arima_seasonal_period,
-            max_p=model_config.arima_max_p,
-            max_d=model_config.arima_max_d,
-            max_q=model_config.arima_max_q,
-            information_criterion=model_config.arima_information_criterion,
+            seasonal=arima_config.seasonal or True,
+            m=arima_config.seasonal_period or 12,
+            max_p=arima_config.max_p or 5,
+            max_d=arima_config.max_d or 2,
+            max_q=arima_config.max_q or 5,
+            information_criterion=arima_config.information_criterion or "aic",
             stepwise=True,
             suppress_warnings=True,
             error_action='ignore'
@@ -170,7 +173,7 @@ class ARIMAForecaster:
         logger.info(f"Generated {n_periods} period forecast for {self.category}")
         return forecast_values, conf_df
     
-    def diagnose_residuals(self, timeseries: pd.Series) -> Dict[str, any]:
+    def diagnose_residuals(self, timeseries: pd.Series) -> Dict[str, Any]:
         """
         Diagnose model residuals (Section 5.2.4)
         

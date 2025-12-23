@@ -13,7 +13,7 @@ from pyspark.sql.functions import (
 from datetime import datetime, timedelta
 import logging
 
-from ..config.settings import data_config, training_config, feature_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +26,15 @@ class DataPreparation:
     Section 3.3.3: Data Treatment
     """
     
-    def __init__(self, spark: Optional[SparkSession] = None):
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
         """
         Initialize data preparation
         
         Args:
+            config: AppConfig instance containing configuration
             spark: SparkSession for Databricks environment
         """
+        self.config = config
         self.spark = spark
         
     def aggregate_daily_costs(self, 
@@ -52,18 +54,18 @@ class DataPreparation:
             group_by = []
         
         # Base grouping columns
-        grouping_cols = [date_trunc("day", col(feature_config.date_column)).alias("date")]
+        grouping_cols = [date_trunc("day", col(self.config.feature.date_column)).alias("date")]
         grouping_cols.extend([col(col_name) for col_name in group_by])
         
         # Aggregate
         aggregated = df.groupBy(*grouping_cols).agg(
-            spark_sum(feature_config.target_column).alias("daily_cost"),
+            spark_sum(self.config.feature.target_column).alias("daily_cost"),
             spark_sum("UsageQuantity").alias("total_quantity"),
             sqlf.avg("ResourceRate").alias("avg_rate")
         )
         
         # Rename date column back to UsageDateTime for consistency
-        aggregated = aggregated.withColumnRenamed("date", feature_config.date_column)
+        aggregated = aggregated.withColumnRenamed("date", self.config.feature.date_column)
         
         logger.info(f"Aggregated to {aggregated.count()} daily records")
         return aggregated
@@ -124,12 +126,12 @@ class DataPreparation:
             # Calculate IQR (would need to compute Q1, Q3)
             # For now, flag extreme values (> 99th percentile)
             percentile_99 = df.approxQuantile(
-                feature_config.target_column, [0.99], 0.25
+                self.config.feature.target_column, [0.99], 0.25
             )[0]
             
             df = df.withColumn(
                 "is_outlier",
-                col(feature_config.target_column) > percentile_99
+                col(self.config.feature.target_column) > percentile_99
             )
         
         logger.info("Outliers detected")
@@ -153,8 +155,10 @@ class DataPreparation:
         
         # Calculate split indices
         n = len(df)
-        train_end = int(n * training_config.train_split)
-        val_end = train_end + int(n * training_config.validation_split)
+        train_split = self.config.training.train_split or 0.70
+        validation_split = self.config.training.validation_split or 0.15
+        train_end = int(n * train_split)
+        val_end = train_end + int(n * validation_split)
         
         # Split chronologically
         train_df = df.iloc[:train_end].copy()
@@ -234,7 +238,8 @@ class DataPreparation:
         """
         segments = {}
         
-        for category in data_config.cost_categories:
+        categories = self.config.data.cost_categories or []
+        for category in categories:
             category_df = df.filter(col("MeterCategory") == category)
             if category_df.count() > 0:
                 segments[category] = category_df

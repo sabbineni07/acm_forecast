@@ -9,7 +9,7 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, sum as spark_sum, avg, count
 import logging
 
-from ..config.settings import data_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,17 +23,19 @@ class DataSource:
     Section 3.1.4: Data Reliability
     """
     
-    def __init__(self, spark: Optional[SparkSession] = None):
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
         """
         Initialize data source
         
         Args:
+            config: AppConfig instance containing configuration
             spark: SparkSession for Databricks environment
         """
+        self.config = config
         self.spark = spark
-        self.delta_table_path = data_config.delta_table_path
-        self.database_name = data_config.database_name
-        self.table_name = data_config.table_name
+        self.delta_table_path = config.data.delta_table_path
+        self.database_name = config.data.database_name
+        self.table_name = config.data.table_name
         
     def load_from_delta(self, 
                        start_date: Optional[str] = None,
@@ -130,9 +132,9 @@ class DataSource:
         # Check data freshness (Section 3.1.4)
         from datetime import datetime, timedelta
         latest_date = date_range.get("max(UsageDateTime)")
-        if latest_date:
+        if latest_date and self.config.data.max_data_delay_hours:
             hours_since_update = (datetime.now() - latest_date).total_seconds() / 3600
-            is_fresh = hours_since_update <= data_config.max_data_delay_hours
+            is_fresh = hours_since_update <= self.config.data.max_data_delay_hours
         else:
             is_fresh = False
             hours_since_update = None

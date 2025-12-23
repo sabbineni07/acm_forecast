@@ -9,7 +9,7 @@ from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, count, sum as spark_sum, isnull, isnan
 import logging
 
-from ..config.settings import data_config, performance_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,15 @@ class DataQualityValidator:
     Section 3.1.4: Data Reliability
     """
     
-    def __init__(self, spark: Optional[SparkSession] = None):
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
         """
         Initialize data quality validator
         
         Args:
+            config: AppConfig instance containing configuration
             spark: SparkSession for Databricks environment
         """
+        self.config = config
         self.spark = spark
     
     def validate_completeness(self, df: DataFrame) -> Dict[str, Any]:
@@ -62,11 +64,12 @@ class DataQualityValidator:
         total_missing = sum([m["count"] for m in missing_counts.values()])
         completeness_rate = ((total_records - total_missing) / total_records * 100) if total_records > 0 else 0
         
+        threshold = self.config.performance.warning_missing_data or 5.0
         results = {
             "total_records": total_records,
             "missing_values": missing_counts,
             "completeness_rate": completeness_rate,
-            "meets_threshold": completeness_rate >= (100 - performance_config.warning_missing_data)
+            "meets_threshold": completeness_rate >= (100 - threshold)
         }
         
         return results
@@ -155,7 +158,8 @@ class DataQualityValidator:
             hours_since_update = (datetime.now() - latest_date).total_seconds() / 3600
             
             # Check if data is fresh (within SLA)
-            is_fresh = hours_since_update <= data_config.max_data_delay_hours
+            max_delay = self.config.data.max_data_delay_hours or 168
+            is_fresh = hours_since_update <= max_delay
             
             results = {
                 "latest_date": latest_date,

@@ -15,7 +15,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import logging
 
-from ..config.settings import model_config, feature_config
+from ..config import AppConfig
 from ..data.feature_engineering import FeatureEngineer
 
 logger = logging.getLogger(__name__)
@@ -27,17 +27,19 @@ class XGBoostForecaster:
     Section 4.2.1: XGBoost Model Methodology
     """
     
-    def __init__(self, category: str = "Total"):
+    def __init__(self, config: AppConfig, category: str = "Total"):
         """
         Initialize XGBoost forecaster
         
         Args:
+            config: AppConfig instance containing configuration
             category: Cost category name
         """
+        self.config = config
         self.category = category
         self.model = None
         self.scaler = StandardScaler()
-        self.feature_engineer = FeatureEngineer()
+        self.feature_engineer = FeatureEngineer(config)
         self.is_trained = False
         self.feature_names = None
     
@@ -48,13 +50,14 @@ class XGBoostForecaster:
         Returns:
             Configured XGBoost model
         """
+        xgboost_config = self.config.model.xgboost
         model = xgb.XGBRegressor(
-            n_estimators=model_config.xgboost_n_estimators,
-            max_depth=model_config.xgboost_max_depth,
-            learning_rate=model_config.xgboost_learning_rate,
-            subsample=model_config.xgboost_subsample,
-            colsample_bytree=model_config.xgboost_colsample_bytree,
-            objective=model_config.xgboost_objective,
+            n_estimators=xgboost_config.n_estimators or 100,
+            max_depth=xgboost_config.max_depth or 6,
+            learning_rate=xgboost_config.learning_rate or 0.1,
+            subsample=xgboost_config.subsample or 0.8,
+            colsample_bytree=xgboost_config.colsample_bytree or 0.8,
+            objective=xgboost_config.objective or "reg:squarederror",
             random_state=42,
             n_jobs=-1
         )
@@ -77,7 +80,7 @@ class XGBoostForecaster:
             df = self.feature_engineer.prepare_xgboost_features(df)
         
         # Select feature columns (exclude target and date)
-        exclude_cols = [feature_config.target_column, feature_config.date_column]
+        exclude_cols = [self.config.feature.target_column, self.config.feature.date_column]
         feature_cols = [col for col in df.columns if col not in exclude_cols]
         
         # Handle categorical features (one-hot encoding)
@@ -90,7 +93,7 @@ class XGBoostForecaster:
         
         # Separate features and target
         X = df[feature_cols].copy()
-        y = df[feature_config.target_column].copy()
+        y = df[self.config.feature.target_column].copy()
         
         # Store feature names
         self.feature_names = list(X.columns)
@@ -144,10 +147,11 @@ class XGBoostForecaster:
             self.model = self.create_model()
         
         # Train with early stopping
+        xgboost_config = self.config.model.xgboost
         self.model.fit(
             X_train_scaled, y_train,
             eval_set=[(X_val_scaled, y_val)],
-            early_stopping_rounds=model_config.xgboost_early_stopping_rounds,
+            early_stopping_rounds=xgboost_config.early_stopping_rounds or 10,
             verbose=False
         )
         

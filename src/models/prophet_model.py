@@ -12,7 +12,7 @@ from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
 import logging
 
-from ..config.settings import model_config, training_config
+from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,15 @@ class ProphetForecaster:
     Section 4.2.1: Prophet Model Methodology
     """
     
-    def __init__(self, category: str = "Total"):
+    def __init__(self, config: AppConfig, category: str = "Total"):
         """
         Initialize Prophet forecaster
         
         Args:
+            config: AppConfig instance containing configuration
             category: Cost category name
         """
+        self.config = config
         self.category = category
         self.model = None
         self.is_trained = False
@@ -41,14 +43,15 @@ class ProphetForecaster:
         Returns:
             Configured Prophet model
         """
+        prophet_config = self.config.model.prophet
         model = Prophet(
-            yearly_seasonality=model_config.prophet_yearly_seasonality,
-            weekly_seasonality=model_config.prophet_weekly_seasonality,
-            daily_seasonality=model_config.prophet_daily_seasonality,
-            seasonality_mode=model_config.prophet_seasonality_mode,
-            changepoint_prior_scale=model_config.prophet_changepoint_prior_scale,
-            holidays_prior_scale=model_config.prophet_holidays_prior_scale,
-            uncertainty_samples=model_config.prophet_uncertainty_samples
+            yearly_seasonality=prophet_config.yearly_seasonality or True,
+            weekly_seasonality=prophet_config.weekly_seasonality or True,
+            daily_seasonality=prophet_config.daily_seasonality or False,
+            seasonality_mode=prophet_config.seasonality_mode or "multiplicative",
+            changepoint_prior_scale=prophet_config.changepoint_prior_scale or 0.05,
+            holidays_prior_scale=prophet_config.holidays_prior_scale or 10.0,
+            uncertainty_samples=prophet_config.uncertainty_samples or 1000
         )
         
         logger.info(f"Created Prophet model for {self.category}")
@@ -117,9 +120,9 @@ class ProphetForecaster:
             # Perform cross-validation
             df_cv = cross_validation(
                 self.model,
-                initial=training_config.cv_initial,
-                period=training_config.cv_period,
-                horizon=training_config.cv_horizon,
+                initial=self.config.training.cv_initial or "180 days",
+                period=self.config.training.cv_period or "30 days",
+                horizon=self.config.training.cv_horizon or "30 days",
                 parallel="threads"
             )
             
