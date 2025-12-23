@@ -2,8 +2,8 @@ include README.md
 include LICENSE
 include requirements.txt
 include requirements-minimal.txt
-recursive-include src/config *.yaml.example
-recursive-include src/config README.md
+recursive-include acm_forecast/config *.yaml.example
+recursive-include acm_forecast/config README.md
 recursive-exclude * __pycache__
 recursive-exclude * *.pyc
 recursive-exclude * *.pyo

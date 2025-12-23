@@ -10,12 +10,12 @@ from acm_forecast.pipeline.training_pipeline import TrainingPipeline
 def main():
     """Example of using YAML configuration"""
     
-    # Option 1: Load default config (from src/config/config.yaml)
+    # Option 1: Load default config (from acm_forecast/config/config.yaml)
     print("="*60)
     print("Loading Configuration from YAML")
     print("="*60)
     
-    config = AppConfig.from_yaml()  # Loads from src/config/config.yaml
+    config = AppConfig.from_yaml()  # Loads from acm_forecast/config/config.yaml
     
     # Access different config sections
     print(f"\nData Configuration:")

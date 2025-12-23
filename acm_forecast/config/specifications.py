@@ -180,7 +180,7 @@ class AppConfig:
         Pydantic automatically parses the nested YAML structure
         
         Args:
-            config_path: Path to YAML config file (default: src/config/config.yaml)
+            config_path: Path to YAML config file (default: acm_forecast/config/config.yaml)
             
         Returns:
             AppConfig instance with loaded and validated configuration

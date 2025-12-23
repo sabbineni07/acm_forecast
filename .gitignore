@@ -67,7 +67,7 @@ env/
 .env.local
 
 # Configuration files (user-specific)
-src/config/config.yaml
+acm_forecast/config/config.yaml
 *.log
 
 # Build artifacts
