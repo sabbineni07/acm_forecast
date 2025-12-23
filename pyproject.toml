@@ -1,0 +1,156 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "acm-forecast"
+version = "1.0.0"
+description = "Azure Cost Management Forecasting Framework - Production-ready time series forecasting models"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Azure Cost Management Team"}
+]
+keywords = [
+    "forecasting",
+    "time-series",
+    "azure",
+    "cost-management",
+    "prophet",
+    "arima",
+    "xgboost",
+    "pyspark",
+    "mlflow"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "pandas>=1.5.0,<3.0.0",
+    "numpy>=1.21.0,<2.0.0",
+    "scikit-learn>=1.1.0,<2.0.0",
+    "pyspark>=3.3.0,<4.0.0",
+    "prophet>=1.1.0,<2.0.0",
+    "statsmodels>=0.13.0,<1.0.0",
+    "pmdarima>=2.0.0,<3.0.0",
+    "xgboost>=1.6.0,<3.0.0",
+    "mlflow>=2.0.0,<3.0.0",
+    "scipy>=1.9.0,<2.0.0",
+    "pyyaml>=6.0,<7.0",
+    "pydantic>=2.0.0,<3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0,<8.0.0",
+    "pytest-cov>=4.0.0,<5.0.0",
+    "pytest-mock>=3.10.0,<4.0.0",
+    "black>=22.0.0,<25.0.0",
+    "flake8>=5.0.0,<7.0.0",
+    "mypy>=1.0.0,<2.0.0",
+]
+visualization = [
+    "matplotlib>=3.5.0,<4.0.0",
+    "seaborn>=0.11.0,<1.0.0",
+    "plotly>=5.10.0,<6.0.0",
+]
+all = [
+    "acm-forecast[dev,visualization]",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/acm-forecast"
+Documentation = "https://github.com/your-org/acm-forecast/blob/main/README.md"
+Repository = "https://github.com/your-org/acm-forecast"
+Issues = "https://github.com/your-org/acm-forecast/issues"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["acm_forecast*"]
+
+[tool.setuptools.package-data]
+"acm_forecast.config" = ["config.example.yaml", "README.md"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.pyc", "__pycache__", "*.pyo"]
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=acm_forecast",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=50",  # Start with lower threshold, increase as more tests are added
+]
+markers = [
+    "unit: Unit tests for individual components",
+    "integration: Integration tests for component interactions",
+    "e2e: End-to-end tests for full workflows",
+    "slow: Tests that take a long time to run",
+    "requires_spark: Tests that require PySpark",
+    "requires_mlflow: Tests that require MLflow",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["acm_forecast"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/examples/*",
+    "*/site-packages/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+skip_covered = false
+precision = 2
+fail_under = 70.0

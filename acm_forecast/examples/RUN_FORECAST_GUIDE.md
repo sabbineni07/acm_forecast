@@ -41,7 +41,7 @@ export DATABRICKS_TOKEN=your-token
 ### 1.3 Verify Installation
 
 ```bash
-python -c "from src.pipeline.training_pipeline import TrainingPipeline; print('✓ Imports successful')"
+python -c "from acm_forecast.pipeline.training_pipeline import TrainingPipeline; print('✓ Imports successful')"
 ```
 
 ## Step 2: Prepare Data
@@ -57,7 +57,7 @@ If you have a Databricks job that extracts data to a Delta table:
 # - Path: azure_cost_management.amortized_costs
 #
 # This uses the data_source module:
-# from src.data.data_source import DataSource
+# from acm_forecast.data.data_source import DataSource
 # data_source = DataSource(spark)
 # df = data_source.load_from_delta(start_date="2023-01-01", end_date="2024-01-01")
 ```
@@ -69,9 +69,9 @@ If you want to test with sample data first:
 ```python
 # Create a test script: test_forecast.py
 from pyspark.sql import SparkSession
-from src.data.data_source import DataSource
-from src.data.data_preparation import DataPreparation
-from src.data.data_quality import DataQualityValidator
+from acm_forecast.data.data_source import DataSource
+from acm_forecast.data.data_preparation import DataPreparation
+from acm_forecast.data.data_quality import DataQualityValidator
 import pandas as pd
 
 # Initialize Spark
@@ -98,44 +98,44 @@ print(f"Data quality score: {quality_results['quality_score']:.2f}%")
 
 The training pipeline uses the following modular components:
 
-1. **`data_source`** (`src/data/data_source.py`): 
+1. **`data_source`** (`acm_forecast/data/data_source.py`): 
    - Loads data from Databricks Delta tables
    - Handles data mapping and validation
    - Used in: `TrainingPipeline.data_source.load_from_delta()`
 
-2. **`data_quality`** (`src/data/data_quality.py`):
+2. **`data_quality`** (`acm_forecast/data/data_quality.py`):
    - Validates data completeness, accuracy, consistency, and timeliness
    - Calculates data quality scores
    - Used in: `TrainingPipeline.data_quality.comprehensive_validation()`
 
-3. **`data_preparation`** (`src/data/data_preparation.py`):
+3. **`data_preparation`** (`acm_forecast/data/data_preparation.py`):
    - Aggregates daily costs
    - Handles missing values and outliers
    - Splits data into train/validation/test sets
    - Prepares data for Prophet and ARIMA models
    - Used in: `TrainingPipeline.data_prep.*`
 
-4. **`feature_engineering`** (`src/data/feature_engineering.py`):
+4. **`feature_engineering`** (`acm_forecast/data/feature_engineering.py`):
    - Creates temporal features (year, month, day, cyclical encoding)
    - Creates lag features (1, 2, 3, 7, 14, 30 days)
    - Creates rolling window features (mean, std, min, max)
    - Prepares features for XGBoost model
    - Used in: `TrainingPipeline.feature_engineer.prepare_xgboost_features()`
 
-5. **`models`** (`src/models/`):
+5. **`models`** (`acm_forecast/models/`):
    - **ProphetForecaster**: Facebook Prophet model
    - **ARIMAForecaster**: ARIMA/SARIMA model
    - **XGBoostForecaster**: XGBoost gradient boosting model
    - Used in: `TrainingPipeline.prophet_forecaster`, `arima_forecaster`, `xgboost_forecaster`
 
-6. **`evaluation`** (`src/evaluation/`):
+6. **`evaluation`** (`acm_forecast/evaluation/`):
    - **ModelEvaluator**: Calculates performance metrics (RMSE, MAE, MAPE, R²)
    - **ModelComparator**: Compares multiple models and selects best
    - Used in: `TrainingPipeline.evaluator`, `TrainingPipeline.comparator`
 
 ### 3.2 Create Training Script
 
-Create a file `src/examples/run_training.py`:
+Create a file `acm_forecast/examples/run_training.py`:
 
 ```python
 """
@@ -145,8 +145,8 @@ Generates forecasts by training models on historical data
 
 import logging
 from pyspark.sql import SparkSession
-from src.pipeline.training_pipeline import TrainingPipeline
-from src.config.settings import data_config
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.config.settings import data_config
 
 # Configure logging
 logging.basicConfig(
@@ -232,7 +232,7 @@ if __name__ == "__main__":
 ### 3.2 Run Training
 
 ```bash
-python src/examples/run_training.py
+python acm_forecast/examples/run_training.py
 ```
 
 **Expected Output:**
@@ -266,7 +266,7 @@ python src/examples/run_training.py
 
 ### 4.1 Create Forecast Script
 
-Create a file `src/examples/run_forecast.py`:
+Create a file `acm_forecast/examples/run_forecast.py`:
 
 ```python
 """
@@ -278,9 +278,9 @@ import logging
 import pandas as pd
 from datetime import datetime, timedelta
 from pyspark.sql import SparkSession
-from src.pipeline.forecast_pipeline import ForecastPipeline
-from src.registry.model_registry import ModelRegistry
-from src.config.settings import forecast_config, registry_config
+from acm_forecast.pipeline.forecast_pipeline import ForecastPipeline
+from acm_forecast.registry.model_registry import ModelRegistry
+from acm_forecast.config.settings import forecast_config, registry_config
 
 # Configure logging
 logging.basicConfig(
@@ -389,12 +389,12 @@ if __name__ == "__main__":
 ### 4.2 Run Forecast Generation
 
 ```bash
-python src/examples/run_forecast.py
+python acm_forecast/examples/run_forecast.py
 ```
 
 ## Step 5: Complete End-to-End Script
 
-For a complete workflow, create `src/examples/run_complete_pipeline.py`:
+For a complete workflow, create `acm_forecast/examples/run_complete_pipeline.py`:
 
 ```python
 """
@@ -405,9 +405,9 @@ Trains models and generates forecasts in one run
 import logging
 import sys
 from pyspark.sql import SparkSession
-from src.pipeline.training_pipeline import TrainingPipeline
-from src.pipeline.forecast_pipeline import ForecastPipeline
-from src.config.settings import data_config
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.pipeline.forecast_pipeline import ForecastPipeline
+from acm_forecast.config.settings import data_config
 
 # Configure logging
 logging.basicConfig(
@@ -515,7 +515,7 @@ if __name__ == "__main__":
 
 ```bash
 # Run complete pipeline
-python src/examples/run_complete_pipeline.py
+python acm_forecast/examples/run_complete_pipeline.py
 
 # Check logs
 tail -f forecast_pipeline.log
@@ -649,13 +649,13 @@ source venv/bin/activate
 export JAVA_HOME=/path/to/java
 
 # 2. Training only
-python src/examples/run_training.py
+python acm_forecast/examples/run_training.py
 
 # 3. Forecast generation only (requires trained models)
-python src/examples/run_forecast.py
+python acm_forecast/examples/run_forecast.py
 
 # 4. Complete pipeline (training + forecasting)
-python src/examples/run_complete_pipeline.py
+python acm_forecast/examples/run_complete_pipeline.py
 
 # 5. View MLflow models
 mlflow ui --port 5000
@@ -692,7 +692,7 @@ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 
 **Solution:**
 - Verify Databricks connection
-- Check table path in `src/config/settings.py`
+- Check table path in `acm_forecast/config/settings.py`
 - Use sample data for testing (see Step 2.2)
 
 ### Issue: "MLflow model not found"
@@ -704,14 +704,14 @@ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 
 ## Next Steps
 
-1. **Customize Configuration**: Edit `src/config/settings.py` for your needs
+1. **Customize Configuration**: Edit `acm_forecast/config/settings.py` for your needs
 2. **Schedule Jobs**: Set up cron jobs or Databricks jobs for automated runs
-3. **Monitor Performance**: Use monitoring modules in `src/monitoring/`
-4. **Retrain Models**: Schedule retraining using `src/monitoring/retraining_scheduler.py`
+3. **Monitor Performance**: Use monitoring modules in `acm_forecast/monitoring/`
+4. **Retrain Models**: Schedule retraining using `acm_forecast/monitoring/retraining_scheduler.py`
 
 ## Additional Resources
 
 - See `MODEL_DOCUMENTATION.md` for model details
-- See `src/README.md` for code structure
+- See `acm_forecast/README.md` for code structure
 - See `INSTALLATION.md` for setup instructions
 

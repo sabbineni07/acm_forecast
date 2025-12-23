@@ -7,9 +7,9 @@ import logging
 import sys
 import pandas as pd
 from pyspark.sql import SparkSession
-from src.pipeline.training_pipeline import TrainingPipeline
-from src.pipeline.forecast_pipeline import ForecastPipeline
-from src.config import AppConfig
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.pipeline.forecast_pipeline import ForecastPipeline
+from acm_forecast.config import AppConfig
 
 # Configure logging
 logging.basicConfig(

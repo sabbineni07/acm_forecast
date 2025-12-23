@@ -3,9 +3,9 @@ Example: Using YAML-based Configuration
 Demonstrates how to use the YAML configuration system
 """
 
-from src.config import AppConfig
+from acm_forecast.config import AppConfig
 from pyspark.sql import SparkSession
-from src.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
 
 def main():
     """Example of using YAML configuration"""

@@ -256,7 +256,7 @@ print('✓ MLflow configured successfully')
    ```
 
 4. **Start Development**:
-   - Review `src/README.md` for code structure
+   - Review `acm_forecast/README.md` for code structure
    - Check `MODEL_DOCUMENTATION.md` for model details
    - Run example notebooks in `notebooks/` directory
 

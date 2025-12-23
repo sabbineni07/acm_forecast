@@ -6,19 +6,19 @@ This project implements multiple forecasting models for Azure cost management us
 
 ```
 acm_forecast/
-├── src/                      # Main source code
+├── acm_forecast/            # Main source code (package)
 │   ├── config/              # Configuration settings
 │   ├── data/                # Data processing modules
 │   ├── models/              # Forecasting models (Prophet, ARIMA, XGBoost)
 │   ├── evaluation/          # Model evaluation and comparison
 │   ├── registry/            # Model registry (MLflow integration)
 │   ├── monitoring/          # Model monitoring and retraining
-│   └── pipeline/            # Training and forecast pipelines
-├── src/
+│   ├── pipeline/            # Training and forecast pipelines
 │   └── examples/            # Example scripts
 │       ├── run_training.py          # Training pipeline script
 │       ├── run_forecast.py          # Forecast generation script
 │       └── run_complete_pipeline.py # End-to-end pipeline script
+├── pyproject.toml           # Package configuration
 └── requirements.txt         # Python dependencies
 ```
 
@@ -48,19 +48,19 @@ pip install -r requirements.txt
 #### Training Models
 
 ```bash
-python src/examples/run_training.py
+python acm_forecast/examples/run_training.py
 ```
 
 #### Generating Forecasts
 
 ```bash
-python src/examples/run_forecast.py
+python acm_forecast/examples/run_forecast.py
 ```
 
 #### Complete Pipeline
 
 ```bash
-python src/examples/run_complete_pipeline.py
+python acm_forecast/examples/run_complete_pipeline.py
 ```
 
 ## Usage
@@ -69,7 +69,7 @@ python src/examples/run_complete_pipeline.py
 
 ```python
 from pyspark.sql import SparkSession
-from src.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
 
 # Initialize Spark
 spark = SparkSession.builder.appName("ACM_Forecasting").getOrCreate()
@@ -84,7 +84,7 @@ results = pipeline.run(category="Compute", start_date="2023-01-01", end_date="20
 ### Forecast Generation
 
 ```python
-from src.pipeline.forecast_pipeline import ForecastPipeline
+from acm_forecast.pipeline.forecast_pipeline import ForecastPipeline
 
 # Create forecast pipeline
 forecast_pipeline = ForecastPipeline(spark)
@@ -95,15 +95,15 @@ forecasts = forecast_pipeline.generate_forecasts(category="Compute", horizons=[3
 
 ## Documentation
 
-- [Source Code Documentation](src/README.md) - Detailed source code documentation
+- [Source Code Documentation](acm_forecast/README.md) - Detailed source code documentation
 - [Model Documentation](MODEL_DOCUMENTATION.md) - Complete model documentation
 - [Module Usage Guide](MODULE_USAGE_GUIDE.md) - How to use each module
-- [Run Forecast Guide](RUN_FORECAST_GUIDE.md) - Guide for generating forecasts
+- [Run Forecast Guide](acm_forecast/examples/RUN_FORECAST_GUIDE.md) - Guide for generating forecasts
 - [Installation Guide](INSTALLATION.md) - Installation and setup instructions
 
 ## Configuration
 
-All configuration is managed through `src/config/settings.py`. See [src/README.md](src/README.md) for details.
+All configuration is managed through `acm_forecast/config/specifications.py`. See [acm_forecast/README.md](acm_forecast/README.md) for details.
 
 ## Model Comparison
 

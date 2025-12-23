@@ -5,8 +5,8 @@ Generates forecasts by training models on historical data
 
 import logging
 from pyspark.sql import SparkSession
-from src.pipeline.training_pipeline import TrainingPipeline
-from src.config import AppConfig
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.config import AppConfig
 
 # Configure logging
 logging.basicConfig(

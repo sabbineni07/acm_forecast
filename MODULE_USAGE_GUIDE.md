@@ -7,7 +7,7 @@ This document explains how each module in the codebase is used in the forecast g
 The codebase is organized into modular components that work together:
 
 ```
-src/
+acm_forecast/
 ├── data/              # Data processing modules
 │   ├── data_source.py          # Loads data from Delta tables
 │   ├── data_quality.py         # Validates data quality
@@ -27,7 +27,7 @@ src/
 
 ## How Modules Are Used
 
-### 1. Data Source Module (`src/data/data_source.py`)
+### 1. Data Source Module (`acm_forecast/data/data_source.py`)
 
 **Purpose**: Loads Azure cost data from Databricks Delta tables
 
@@ -35,7 +35,7 @@ src/
 
 **Example Usage**:
 ```python
-from src.data.data_source import DataSource
+from acm_forecast.data.data_source import DataSource
 
 data_source = DataSource(spark)
 df = data_source.load_from_delta(
@@ -53,7 +53,7 @@ df = data_source.load_from_delta(
 
 ---
 
-### 2. Data Quality Module (`src/data/data_quality.py`)
+### 2. Data Quality Module (`acm_forecast/data/data_quality.py`)
 
 **Purpose**: Validates data quality (completeness, accuracy, consistency, timeliness)
 
@@ -61,7 +61,7 @@ df = data_source.load_from_delta(
 
 **Example Usage**:
 ```python
-from src.data.data_quality import DataQualityValidator
+from acm_forecast.data.data_quality import DataQualityValidator
 
 quality_validator = DataQualityValidator(spark)
 quality_results = quality_validator.comprehensive_validation(df)
@@ -80,7 +80,7 @@ if quality_results["quality_score"] < 80:
 
 ---
 
-### 3. Data Preparation Module (`src/data/data_preparation.py`)
+### 3. Data Preparation Module (`acm_forecast/data/data_preparation.py`)
 
 **Purpose**: Prepares and cleans data for modeling
 
@@ -88,7 +88,7 @@ if quality_results["quality_score"] < 80:
 
 **Example Usage**:
 ```python
-from src.data.data_preparation import DataPreparation
+from acm_forecast.data.data_preparation import DataPreparation
 
 data_prep = DataPreparation(spark)
 
@@ -119,7 +119,7 @@ arima_data = data_prep.prepare_for_arima(train_df)
 
 ---
 
-### 4. Feature Engineering Module (`src/data/feature_engineering.py`)
+### 4. Feature Engineering Module (`acm_forecast/data/feature_engineering.py`)
 
 **Purpose**: Creates features for XGBoost model
 
@@ -127,7 +127,7 @@ arima_data = data_prep.prepare_for_arima(train_df)
 
 **Example Usage**:
 ```python
-from src.data.feature_engineering import FeatureEngineer
+from acm_forecast.data.feature_engineering import FeatureEngineer
 
 feature_engineer = FeatureEngineer(spark)
 
@@ -150,17 +150,17 @@ df_with_derived = feature_engineer.create_derived_features(df_with_rolling)
 
 ---
 
-### 5. Models Module (`src/models/`)
+### 5. Models Module (`acm_forecast/models/`)
 
 **Purpose**: Implements forecasting models
 
 **Used in**: `TrainingPipeline.run()` - Step 6
 
-#### 5.1 Prophet Model (`src/models/prophet_model.py`)
+#### 5.1 Prophet Model (`acm_forecast/models/prophet_model.py`)
 
 **Example Usage**:
 ```python
-from src.models.prophet_model import ProphetForecaster
+from acm_forecast.models.prophet_model import ProphetForecaster
 
 prophet_model = ProphetForecaster(category="Total")
 prophet_model.train(prophet_data)
@@ -175,11 +175,11 @@ metrics = prophet_model.evaluate(forecast, actual_data)
 - `evaluate()`: Calculates metrics
 - `get_model_components()`: Extracts components
 
-#### 5.2 ARIMA Model (`src/models/arima_model.py`)
+#### 5.2 ARIMA Model (`acm_forecast/models/arima_model.py`)
 
 **Example Usage**:
 ```python
-from src.models.arima_model import ARIMAForecaster
+from acm_forecast.models.arima_model import ARIMAForecaster
 
 arima_model = ARIMAForecaster(category="Total")
 arima_model.train(arima_data)
@@ -195,11 +195,11 @@ metrics = arima_model.evaluate(forecast, actual_data)
 - `diagnose_residuals()`: Residual diagnostics
 - `evaluate()`: Calculates metrics
 
-#### 5.3 XGBoost Model (`src/models/xgboost_model.py`)
+#### 5.3 XGBoost Model (`acm_forecast/models/xgboost_model.py`)
 
 **Example Usage**:
 ```python
-from src.models.xgboost_model import XGBoostForecaster
+from acm_forecast.models.xgboost_model import XGBoostForecaster
 
 xgboost_model = XGBoostForecaster(category="Total")
 xgboost_model.train(xgboost_data)
@@ -217,17 +217,17 @@ importance = xgboost_model.get_feature_importance()
 
 ---
 
-### 6. Evaluation Module (`src/evaluation/`)
+### 6. Evaluation Module (`acm_forecast/evaluation/`)
 
 **Purpose**: Evaluates and compares model performance
 
 **Used in**: `TrainingPipeline.run()` - Step 7
 
-#### 6.1 Performance Metrics (`src/evaluation/performance_metrics.py`)
+#### 6.1 Performance Metrics (`acm_forecast/evaluation/performance_metrics.py`)
 
 **Example Usage**:
 ```python
-from src.evaluation.performance_metrics import PerformanceMetrics
+from acm_forecast.evaluation.performance_metrics import PerformanceMetrics
 
 metrics_calc = PerformanceMetrics()
 metrics = metrics_calc.calculate_metrics(y_true, y_pred)
@@ -239,11 +239,11 @@ metrics = metrics_calc.calculate_metrics(y_true, y_pred)
 - `calculate_by_horizon()`: Metrics by forecast horizon
 - `create_performance_summary()`: Summary table
 
-#### 6.2 Model Evaluator (`src/evaluation/model_evaluator.py`)
+#### 6.2 Model Evaluator (`acm_forecast/evaluation/model_evaluator.py`)
 
 **Example Usage**:
 ```python
-from src.evaluation.model_evaluator import ModelEvaluator
+from acm_forecast.evaluation.model_evaluator import ModelEvaluator
 
 evaluator = ModelEvaluator()
 metrics = evaluator.evaluate_model(forecast, actual, "Prophet")
@@ -256,11 +256,11 @@ benchmarks = evaluator.benchmark_comparison(model_forecast, actual, naive_foreca
 - `sensitivity_analysis()`: Sensitivity testing
 - `benchmark_comparison()`: Compare with naive methods
 
-#### 6.3 Model Comparator (`src/evaluation/model_comparison.py`)
+#### 6.3 Model Comparator (`acm_forecast/evaluation/model_comparison.py`)
 
 **Example Usage**:
 ```python
-from src.evaluation.model_comparison import ModelComparator
+from acm_forecast.evaluation.model_comparison import ModelComparator
 
 comparator = ModelComparator()
 comparison_df = comparator.compare_models(
@@ -322,8 +322,8 @@ comparison = self.comparator.compare_models(forecasts, actual)
 
 ```python
 from pyspark.sql import SparkSession
-from src.data.data_source import DataSource
-from src.data.data_quality import DataQualityValidator
+from acm_forecast.data.data_source import DataSource
+from acm_forecast.data.data_quality import DataQualityValidator
 
 spark = SparkSession.builder.appName("QualityCheck").getOrCreate()
 
@@ -341,7 +341,7 @@ print(f"Quality Score: {results['quality_score']:.2f}%")
 
 ```python
 import pandas as pd
-from src.data.feature_engineering import FeatureEngineer
+from acm_forecast.data.feature_engineering import FeatureEngineer
 
 # Load data
 df = pd.read_csv("data/daily_costs.csv")
@@ -357,8 +357,8 @@ print(f"Features created: {len(df_features.columns)}")
 ### Example 3: Standalone Model Training
 
 ```python
-from src.models.prophet_model import ProphetForecaster
-from src.data.data_preparation import DataPreparation
+from acm_forecast.models.prophet_model import ProphetForecaster
+from acm_forecast.data.data_preparation import DataPreparation
 import pandas as pd
 
 # Prepare data

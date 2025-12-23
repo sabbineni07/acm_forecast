@@ -6,16 +6,16 @@ This directory contains YAML-based configuration for the Azure Cost Management F
 
 1. **Copy example config**:
    ```bash
-   cp src/config/config.example.yaml src/config/config.yaml
+   cp acm_forecast/config/config.example.yaml acm_forecast/config/config.yaml
    ```
 
 2. **Edit config.yaml** with your settings
 
 3. **Use in code**:
    ```python
-   from src.config import AppConfig
+   from acm_forecast.config import AppConfig
    
-   # Load configuration (defaults to src/config/config.yaml)
+   # Load configuration (defaults to acm_forecast/config/config.yaml)
    config = AppConfig.from_yaml()
    
    # Access configs
@@ -25,8 +25,8 @@ This directory contains YAML-based configuration for the Azure Cost Management F
 
 ## Configuration Files
 
-- **`src/config/config.yaml`**: Main configuration file (create from example)
-- **`src/config/config.example.yaml`**: Example configuration template
+- **`acm_forecast/config/config.yaml`**: Main configuration file (create from example)
+- **`acm_forecast/config/config.example.yaml`**: Example configuration template
 
 ## Configuration Structure
 
@@ -73,9 +73,9 @@ This directory contains YAML-based configuration for the Azure Cost Management F
 ### Basic Usage
 
 ```python
-from src.config import AppConfig
+from acm_forecast.config import AppConfig
 
-# Load default config (from src/config/config.yaml)
+# Load default config (from acm_forecast/config/config.yaml)
 config = AppConfig.from_yaml()
 
 # Or specify custom path
@@ -92,10 +92,10 @@ print(config.training.train_split)
 ### Using in Pipeline
 
 ```python
-from src.config import AppConfig
-from src.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.config import AppConfig
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
 
-# Load config (defaults to src/config/config.yaml)
+# Load config (defaults to acm_forecast/config/config.yaml)
 config = AppConfig.from_yaml()
 
 # Use in pipeline
@@ -133,8 +133,8 @@ The configuration loader validates:
 
 ## Best Practices
 
-1. **Never commit `src/config/config.yaml`** - Add to `.gitignore`
-2. **Use `src/config/config.example.yaml`** as template
+1. **Never commit `acm_forecast/config/config.yaml`** - Add to `.gitignore`
+2. **Use `acm_forecast/config/config.example.yaml`** as template
 3. **Use environment variables** for sensitive data
 4. **Validate config** before running pipelines
 5. **Document custom configs** in your team

@@ -5,7 +5,7 @@ This directory contains the modular implementation of the Azure Cost Management 
 ## Directory Structure
 
 ```
-src/
+acm_forecast/
 ├── config/           # Configuration settings (Section 7)
 │   └── settings.py   # All configuration classes
 ├── data/             # Data module (Section 3)
@@ -39,7 +39,7 @@ src/
 
 ```python
 from pyspark.sql import SparkSession
-from src.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.pipeline.training_pipeline import TrainingPipeline
 
 # Initialize Spark
 spark = SparkSession.builder.appName("ACM_Forecasting").getOrCreate()
@@ -54,7 +54,7 @@ results = pipeline.run(category="Compute", start_date="2023-01-01", end_date="20
 ### Forecast Generation
 
 ```python
-from src.pipeline.forecast_pipeline import ForecastPipeline
+from acm_forecast.pipeline.forecast_pipeline import ForecastPipeline
 
 # Create forecast pipeline
 forecast_pipeline = ForecastPipeline(spark)
@@ -66,7 +66,7 @@ forecasts = forecast_pipeline.generate_forecasts(category="Compute", horizons=[3
 ### Model Registry
 
 ```python
-from src.registry.model_registry import ModelRegistry
+from acm_forecast.registry.model_registry import ModelRegistry
 
 # Initialize registry
 registry = ModelRegistry()
@@ -86,7 +86,7 @@ registry.promote_model("azure_cost_forecast_prophet", version, "Production")
 
 ## Configuration
 
-All configuration is managed through `src/config/settings.py`. Key configuration classes:
+All configuration is managed through `acm_forecast/config/settings.py`. Key configuration classes:
 
 - `DataConfig`: Data source and processing settings
 - `ModelConfig`: Model hyperparameters
