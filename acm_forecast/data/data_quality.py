@@ -43,10 +43,13 @@ class DataQualityValidator:
         """
         total_records = df.count()
         
-        # Check for missing values in key columns
+        # Check for missing values in key columns (using snake_case)
         key_columns = [
-            "UsageDateTime", "PreTaxCost", "MeterCategory",
-            "ResourceLocation", "Currency"
+            self.config.feature.date_column,  # usage_date
+            self.config.feature.target_column,  # cost_in_billing_currency
+            "meter_category",
+            "resource_location",
+            "billing_currency_code"
         ]
         
         missing_counts = {}
@@ -85,17 +88,19 @@ class DataQualityValidator:
             Accuracy validation results
         """
         # Check for negative costs (should not exist)
-        negative_costs = df.filter(col("PreTaxCost") < 0).count()
+        target_col = self.config.feature.target_column
+        negative_costs = df.filter(col(target_col) < 0).count()
         
         # Check for zero costs (may be valid, but flag for review)
-        zero_costs = df.filter(col("PreTaxCost") == 0).count()
+        zero_costs = df.filter(col(target_col) == 0).count()
         
         # Check currency consistency (should be USD)
-        currency_check = df.filter(col("Currency") != "USD").count()
+        currency_check = df.filter(col("billing_currency_code") != "USD").count() if "billing_currency_code" in df.columns else 0
         
         # Check date range validity
+        date_col = self.config.feature.date_column
         date_stats = df.agg(
-            {"UsageDateTime": "min", "UsageDateTime": "max"}
+            {date_col: "min", date_col: "max"}
         ).collect()[0]
         
         results = {
@@ -103,8 +108,8 @@ class DataQualityValidator:
             "zero_costs": zero_costs,
             "non_usd_currency": currency_check,
             "date_range": {
-                "min": date_stats.get("min(UsageDateTime)"),
-                "max": date_stats.get("max(UsageDateTime)")
+                "min": date_stats.get(f"min({date_col})"),
+                "max": date_stats.get(f"max({date_col})")
             },
             "data_quality_issues": negative_costs > 0 or currency_check > 0
         }
@@ -151,7 +156,8 @@ class DataQualityValidator:
         from datetime import datetime
         
         # Get latest date in data
-        latest_date = df.agg({"UsageDateTime": "max"}).collect()[0]["max(UsageDateTime)"]
+        date_col = self.config.feature.date_column
+        latest_date = df.agg({date_col: "max"}).collect()[0][f"max({date_col})"]
         
         if latest_date:
             # Calculate hours since last update

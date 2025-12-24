@@ -60,13 +60,14 @@ class DataSource:
         # Read from Delta table
         df = self.spark.read.format("delta").table(self.delta_table_path)
         
-        # Apply filters
+        # Apply filters (using snake_case column names)
+        date_col = self.config.feature.date_column
         if start_date:
-            df = df.filter(col("UsageDateTime") >= start_date)
+            df = df.filter(col(date_col) >= start_date)
         if end_date:
-            df = df.filter(col("UsageDateTime") <= end_date)
+            df = df.filter(col(date_col) <= end_date)
         if category:
-            df = df.filter(col("MeterCategory") == category)
+            df = df.filter(col("meter_category") == category)
         
         logger.info(f"Loaded {df.count()} records")
         return df
@@ -83,28 +84,30 @@ class DataSource:
         """
         total_records = df.count()
         
-        # Date range
+        # Date range (using snake_case)
+        date_col = self.config.feature.date_column
+        target_col = self.config.feature.target_column
         date_stats = df.agg(
-            {"UsageDateTime": "min", "UsageDateTime": "max"}
+            {date_col: "min", date_col: "max"}
         ).collect()[0]
         
         # Regional distribution
-        region_dist = df.groupBy("ResourceLocation").agg(
+        region_dist = df.groupBy("resource_location").agg(
             count("*").alias("count"),
-            spark_sum("PreTaxCost").alias("total_cost")
+            spark_sum(target_col).alias("total_cost")
         ).toPandas()
         
         # Category distribution
-        category_dist = df.groupBy("MeterCategory").agg(
+        category_dist = df.groupBy("meter_category").agg(
             count("*").alias("count"),
-            spark_sum("PreTaxCost").alias("total_cost")
+            spark_sum(target_col).alias("total_cost")
         ).toPandas()
         
         profile = {
             "total_records": total_records,
             "date_range": {
-                "start": date_stats.get("min(UsageDateTime)"),
-                "end": date_stats.get("max(UsageDateTime)")
+                "start": date_stats.get(f"min({date_col})"),
+                "end": date_stats.get(f"max({date_col})")
             },
             "regional_distribution": region_dist.to_dict("records"),
             "category_distribution": category_dist.to_dict("records")
@@ -125,13 +128,14 @@ class DataSource:
         total_records = df.count()
         
         # Check for missing dates
+        date_col = self.config.feature.date_column
         date_range = df.agg(
-            {"UsageDateTime": "min", "UsageDateTime": "max"}
+            {date_col: "min", date_col: "max"}
         ).collect()[0]
         
         # Check data freshness (Section 3.1.4)
         from datetime import datetime, timedelta
-        latest_date = date_range.get("max(UsageDateTime)")
+        latest_date = date_range.get(f"max({date_col})")
         if latest_date and self.config.data.max_data_delay_hours:
             hours_since_update = (datetime.now() - latest_date).total_seconds() / 3600
             is_fresh = hours_since_update <= self.config.data.max_data_delay_hours
@@ -154,35 +158,35 @@ class DataSource:
     def map_attributes(self) -> Dict[str, str]:
         """
         Get attribute mapping (Section 3.1.3)
+        Returns snake_case column names matching Delta table schema
         
         Returns:
-            Dictionary mapping source to target attributes
+            Dictionary mapping framework names to Delta table column names (snake_case)
         """
         return {
-            "SubscriptionGuid": "SubscriptionGuid",
-            "ResourceGroup": "ResourceGroup",
-            "ResourceLocation": "ResourceLocation",
-            "UsageDateTime": "UsageDateTime",
-            "MeterCategory": "MeterCategory",
-            "MeterSubCategory": "MeterSubCategory",
-            "MeterId": "MeterId",
-            "MeterName": "MeterName",
-            "MeterRegion": "MeterRegion",
-            "UsageQuantity": "UsageQuantity",
-            "ResourceRate": "ResourceRate",
-            "PreTaxCost": "PreTaxCost",  # Target variable
-            "ConsumedService": "ConsumedService",
-            "ResourceType": "ResourceType",
-            "InstanceId": "InstanceId",
-            "Tags": "Tags",
-            "OfferId": "OfferId",
-            "AdditionalInfo": "AdditionalInfo",
-            "ServiceInfo1": "ServiceInfo1",
-            "ServiceInfo2": "ServiceInfo2",
-            "ServiceName": "ServiceName",
-            "ServiceTier": "ServiceTier",
-            "Currency": "Currency",
-            "UnitOfMeasure": "UnitOfMeasure"
+            "subscription_id": "subscription_id",
+            "resource_group": "resource_group",
+            "resource_location": "resource_location",
+            "usage_date": "usage_date",  # DATE type
+            "meter_category": "meter_category",
+            "meter_sub_category": "meter_sub_category",
+            "meter_id": "meter_id",
+            "meter_name": "meter_name",
+            "meter_region": "meter_region",
+            "quantity": "quantity",
+            "effective_price": "effective_price",
+            "cost_in_billing_currency": "cost_in_billing_currency",  # Target variable
+            "consumed_service": "consumed_service",
+            "resource_id": "resource_id",
+            "tags": "tags",
+            "offer_id": "offer_id",
+            "additional_info": "additional_info",
+            "service_info1": "service_info1",
+            "service_info2": "service_info2",
+            "product_name": "product_name",
+            "plan_name": "plan_name",  # Replaces ServiceTier
+            "billing_currency_code": "billing_currency_code",
+            "unit_of_measure": "unit_of_measure"
         }
 
 

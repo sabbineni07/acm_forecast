@@ -92,14 +92,15 @@ class TrainingPipeline:
         logger.info("Step 3: Aggregating daily costs")
         if category != "Total":
             daily_df_spark = self.data_prep.aggregate_daily_costs(
-                df_spark, group_by=["MeterCategory"]
+                df_spark, group_by=["meter_category"]
             )
         else:
             daily_df_spark = self.data_prep.aggregate_daily_costs(df_spark)
         
         # Convert to Pandas for modeling
         daily_df = daily_df_spark.toPandas()
-        daily_df = daily_df.sort_values("UsageDateTime").reset_index(drop=True)
+        date_col = self.config.feature.date_column
+        daily_df = daily_df.sort_values(date_col).reset_index(drop=True)
         
         # Step 4: Data preparation (Section 3.3)
         logger.info("Step 4: Preparing data")

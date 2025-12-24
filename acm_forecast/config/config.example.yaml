@@ -85,8 +85,8 @@ training:
 feature:
   lag_periods: [1, 2, 3, 7, 14, 30]
   rolling_windows: [3, 7, 14, 30]
-  target_column: "PreTaxCost"
-  date_column: "UsageDateTime"
+  target_column: "cost_in_billing_currency"
+  date_column: "usage_date"
 
 # ============================================================================
 # Performance Configuration

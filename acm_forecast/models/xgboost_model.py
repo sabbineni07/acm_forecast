@@ -83,8 +83,8 @@ class XGBoostForecaster:
         exclude_cols = [self.config.feature.target_column, self.config.feature.date_column]
         feature_cols = [col for col in df.columns if col not in exclude_cols]
         
-        # Handle categorical features (one-hot encoding)
-        categorical_cols = ['MeterCategory', 'ResourceLocation', 'ServiceTier']
+        # Handle categorical features (one-hot encoding) - using snake_case
+        categorical_cols = ['meter_category', 'resource_location', 'plan_name']
         for col in categorical_cols:
             if col in df.columns:
                 df = pd.get_dummies(df, columns=[col], prefix=col, drop_first=True)

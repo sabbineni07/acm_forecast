@@ -7,7 +7,7 @@ from typing import Optional, Tuple, List, Dict
 import pandas as pd
 from pyspark.sql import SparkSession, DataFrame, functions as sqlf
 from pyspark.sql.functions import (
-    col, sum as spark_sum, date_trunc, to_date,
+    col, sum as spark_sum, date_trunc, to_date, to_timestamp,
     when, isnan, isnull, lit, coalesce
 )
 from datetime import datetime, timedelta
@@ -45,7 +45,7 @@ class DataPreparation:
         
         Args:
             df: Input DataFrame
-            group_by: Additional grouping columns (e.g., ['MeterCategory'])
+            group_by: Additional grouping columns (e.g., ['meter_category'])
             
         Returns:
             Aggregated DataFrame with daily costs
@@ -53,18 +53,21 @@ class DataPreparation:
         if group_by is None:
             group_by = []
         
-        # Base grouping columns
-        grouping_cols = [date_trunc("day", col(self.config.feature.date_column)).alias("date")]
+        # Base grouping columns (handle DATE type - convert to timestamp for date_trunc if needed)
+        # usage_date is DATE type, so we can use it directly with to_date if it's string, or date_trunc if timestamp
+        date_col_expr = col(self.config.feature.date_column)
+        # If it's already a date type, use date_trunc; if string, convert first
+        grouping_cols = [date_trunc("day", date_col_expr).alias("date")]
         grouping_cols.extend([col(col_name) for col_name in group_by])
         
         # Aggregate
         aggregated = df.groupBy(*grouping_cols).agg(
             spark_sum(self.config.feature.target_column).alias("daily_cost"),
-            spark_sum("UsageQuantity").alias("total_quantity"),
-            sqlf.avg("ResourceRate").alias("avg_rate")
+            spark_sum("quantity").alias("total_quantity"),
+            sqlf.avg("effective_price").alias("avg_rate")
         )
         
-        # Rename date column back to UsageDateTime for consistency
+        # Rename date column back to usage_date for consistency
         aggregated = aggregated.withColumnRenamed("date", self.config.feature.date_column)
         
         logger.info(f"Aggregated to {aggregated.count()} daily records")
@@ -84,7 +87,7 @@ class DataPreparation:
         # This would require creating a complete date range and filling
         
         # Handle missing numerical values
-        numerical_cols = ["PreTaxCost", "UsageQuantity", "ResourceRate"]
+        numerical_cols = [self.config.feature.target_column, "quantity", "effective_price"]
         for col_name in numerical_cols:
             if col_name in df.columns:
                 df = df.withColumn(
@@ -93,7 +96,7 @@ class DataPreparation:
                 )
         
         # Handle missing categorical values
-        categorical_cols = ["MeterCategory", "ResourceLocation", "ServiceTier"]
+        categorical_cols = ["meter_category", "resource_location", "plan_name"]
         for col_name in categorical_cols:
             if col_name in df.columns:
                 df = df.withColumn(
@@ -139,7 +142,7 @@ class DataPreparation:
     
     def split_time_series(self, 
                          df: pd.DataFrame,
-                         date_col: str = "UsageDateTime") -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+                         date_col: str = None) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Split time series data (Section 3.3.2)
         
@@ -150,7 +153,11 @@ class DataPreparation:
         Returns:
             Tuple of (train, validation, test) DataFrames
         """
-        # Ensure sorted by date
+        if date_col is None:
+            date_col = self.config.feature.date_column
+        # Ensure sorted by date (convert to datetime if needed for sorting)
+        df = df.copy()
+        df[date_col] = pd.to_datetime(df[date_col])
         df = df.sort_values(date_col).reset_index(drop=True)
         
         # Calculate split indices
@@ -174,8 +181,8 @@ class DataPreparation:
     
     def prepare_for_prophet(self, 
                            df: pd.DataFrame,
-                           date_col: str = "UsageDateTime",
-                           value_col: str = "PreTaxCost") -> pd.DataFrame:
+                           date_col: str = None,
+                           value_col: str = None) -> pd.DataFrame:
         """
         Prepare data for Prophet model (Section 4.2.1)
         
@@ -187,6 +194,10 @@ class DataPreparation:
         Returns:
             DataFrame with 'ds' and 'y' columns for Prophet
         """
+        if date_col is None:
+            date_col = self.config.feature.date_column
+        if value_col is None:
+            value_col = self.config.feature.target_column
         prophet_df = pd.DataFrame({
             "ds": pd.to_datetime(df[date_col]),
             "y": df[value_col]
@@ -203,8 +214,8 @@ class DataPreparation:
     
     def prepare_for_arima(self,
                          df: pd.DataFrame,
-                         date_col: str = "UsageDateTime",
-                         value_col: str = "PreTaxCost") -> pd.Series:
+                         date_col: str = None,
+                         value_col: str = None) -> pd.Series:
         """
         Prepare data for ARIMA model (Section 4.2.1)
         
@@ -216,8 +227,14 @@ class DataPreparation:
         Returns:
             Time series as pandas Series with datetime index
         """
-        # Create time series
-        ts = df.set_index(date_col)[value_col].sort_index()
+        if date_col is None:
+            date_col = self.config.feature.date_column
+        if value_col is None:
+            value_col = self.config.feature.target_column
+        # Create time series (ensure date_col is datetime for indexing)
+        df_copy = df.copy()
+        df_copy[date_col] = pd.to_datetime(df_copy[date_col])
+        ts = df_copy.set_index(date_col)[value_col].sort_index()
         
         # Remove any NaN values
         ts = ts.dropna()
@@ -240,7 +257,7 @@ class DataPreparation:
         
         categories = self.config.data.cost_categories or []
         for category in categories:
-            category_df = df.filter(col("MeterCategory") == category)
+            category_df = df.filter(col("meter_category") == category)
             if category_df.count() > 0:
                 segments[category] = category_df
         

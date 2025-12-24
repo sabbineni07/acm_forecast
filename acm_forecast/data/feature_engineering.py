@@ -37,7 +37,7 @@ class FeatureEngineer:
         self.spark = spark
     
     def create_temporal_features(self, df: pd.DataFrame,
-                                date_col: str = "UsageDateTime") -> pd.DataFrame:
+                                date_col: str = None) -> pd.DataFrame:
         """
         Create time-based features (Section 3.3.4)
         
@@ -48,6 +48,8 @@ class FeatureEngineer:
         Returns:
             DataFrame with temporal features
         """
+        if date_col is None:
+            date_col = self.config.feature.date_column
         df_features = df.copy()
         df_features[date_col] = pd.to_datetime(df_features[date_col])
         
@@ -80,7 +82,7 @@ class FeatureEngineer:
     
     def create_lag_features(self, 
                            df: pd.DataFrame,
-                           target_col: str = "PreTaxCost",
+                           target_col: str = None,
                            group_col: Optional[str] = None,
                            lags: Optional[List[int]] = None) -> pd.DataFrame:
         """
@@ -95,11 +97,14 @@ class FeatureEngineer:
         Returns:
             DataFrame with lag features
         """
+        if target_col is None:
+            target_col = self.config.feature.target_column
         if lags is None:
             lags = self.config.feature.lag_periods or [1, 2, 3, 7, 14, 30]
         
         df_lags = df.copy()
-        df_lags = df_lags.sort_values('UsageDateTime')
+        date_col = self.config.feature.date_column
+        df_lags = df_lags.sort_values(date_col)
         
         if group_col:
             # Create lags by group
@@ -117,7 +122,7 @@ class FeatureEngineer:
     
     def create_rolling_features(self,
                                df: pd.DataFrame,
-                               target_col: str = "PreTaxCost",
+                               target_col: str = None,
                                group_col: Optional[str] = None,
                                windows: Optional[List[int]] = None) -> pd.DataFrame:
         """
@@ -132,11 +137,14 @@ class FeatureEngineer:
         Returns:
             DataFrame with rolling features
         """
+        if target_col is None:
+            target_col = self.config.feature.target_column
         if windows is None:
             windows = self.config.feature.rolling_windows or [3, 7, 14, 30]
         
         df_rolling = df.copy()
-        df_rolling = df_rolling.sort_values('UsageDateTime')
+        date_col = self.config.feature.date_column
+        df_rolling = df_rolling.sort_values(date_col)
         
         if group_col:
             # Create rolling features by group
@@ -195,31 +203,35 @@ class FeatureEngineer:
             DataFrame with derived features
         """
         df_derived = df.copy()
+        target_col = self.config.feature.target_column
         
         # Cost per unit
-        if 'UsageQuantity' in df_derived.columns and 'PreTaxCost' in df_derived.columns:
+        if 'quantity' in df_derived.columns and target_col in df_derived.columns:
             df_derived['CostPerUnit'] = (
-                df_derived['PreTaxCost'] / (df_derived['UsageQuantity'] + 1e-8)
+                df_derived[target_col] / (df_derived['quantity'] + 1e-8)
             )
         
         # Growth rates (if lag features exist)
-        if 'PreTaxCost_lag_1' in df_derived.columns:
+        lag_1_col = f'{target_col}_lag_1'
+        if lag_1_col in df_derived.columns:
             df_derived['DayOverDayChange'] = (
-                df_derived['PreTaxCost'] - df_derived['PreTaxCost_lag_1']
+                df_derived[target_col] - df_derived[lag_1_col]
             )
             df_derived['DayOverDayPctChange'] = (
-                (df_derived['PreTaxCost'] - df_derived['PreTaxCost_lag_1']) /
-                (df_derived['PreTaxCost_lag_1'] + 1e-8) * 100
+                (df_derived[target_col] - df_derived[lag_1_col]) /
+                (df_derived[lag_1_col] + 1e-8) * 100
             )
         
-        if 'PreTaxCost_lag_7' in df_derived.columns:
+        lag_7_col = f'{target_col}_lag_7'
+        if lag_7_col in df_derived.columns:
             df_derived['WeekOverWeekChange'] = (
-                df_derived['PreTaxCost'] - df_derived['PreTaxCost_lag_7']
+                df_derived[target_col] - df_derived[lag_7_col]
             )
         
-        if 'PreTaxCost_lag_30' in df_derived.columns:
+        lag_30_col = f'{target_col}_lag_30'
+        if lag_30_col in df_derived.columns:
             df_derived['MonthOverMonthChange'] = (
-                df_derived['PreTaxCost'] - df_derived['PreTaxCost_lag_30']
+                df_derived[target_col] - df_derived[lag_30_col]
             )
         
         logger.info("Created derived features")

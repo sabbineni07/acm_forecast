@@ -107,9 +107,9 @@ feature:
     - 14
     - 30
   
-  # Column names
-  target_column: "PreTaxCost"
-  date_column: "UsageDateTime"
+  # Column names (snake_case to match Delta table schema)
+  target_column: "cost_in_billing_currency"
+  date_column: "usage_date"
 
 # ============================================================================
 # Performance Configuration
