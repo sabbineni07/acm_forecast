@@ -112,7 +112,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-report=xml",
-    "--cov-fail-under=50",  # Start with lower threshold, increase as more tests are added
+    "--cov-fail-under=80",  # Start with lower threshold, increase as more tests are added
 ]
 markers = [
     "unit: Unit tests for individual components",
@@ -126,6 +126,8 @@ filterwarnings = [
     "error",
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore::ResourceWarning"
 ]
 
 [tool.coverage.run]

@@ -40,7 +40,7 @@ class ModelRegistry:
         try:
             mlflow.set_experiment(self.experiment_name)
         except Exception as e:
-            logger.warning(f"Could not set experiment: {e}")
+            logger.warning(f"Could not set experiment: {e}", exc_info=True)
     
     def register_model(self,
                       model: Any,

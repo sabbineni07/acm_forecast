@@ -88,7 +88,7 @@ def main():
                         )
                 
             except Exception as e:
-                logger.error(f"✗ Forecast generation failed for {category}: {e}")
+                logger.error(f"✗ Forecast generation failed for {category}: {e}", exc_info=True)
                 all_forecasts[category] = {"error": str(e)}
         
         # Step 4: Save forecasts

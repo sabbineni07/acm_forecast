@@ -70,7 +70,7 @@ def main():
                         )
                 
             except Exception as e:
-                logger.error(f"✗ Training failed for {category}: {e}")
+                logger.error(f"✗ Training failed for {category}: {e}", exc_info=True)
                 all_results[category] = {"error": str(e)}
         
         # Step 4: Summary

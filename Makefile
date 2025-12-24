@@ -60,11 +60,12 @@ help:
 	@echo "  make docker-run-pipeline   - Run complete pipeline"
 	@echo ""
 	@echo "Docker - Testing:"
-	@echo "  make docker-test           - Run all tests in Docker"
+	@echo "  make docker-test           - Run all tests in Docker (includes Java)"
 	@echo "  make docker-test-unit      - Run unit tests in Docker"
-	@echo "  make docker-test-integration - Run integration tests in Docker"
+	@echo "  make docker-test-integration - Run integration tests in Docker (Delta tables)"
 	@echo "  make docker-test-e2e       - Run e2e tests in Docker"
-	@echo "  make docker-test-cov       - Run tests with coverage in Docker"
+	@echo "  make docker-test-cov       - Run tests with coverage in Docker (terminal)"
+	@echo "  make docker-test-cov-html  - Run tests with coverage in Docker (HTML report)"
 	@echo ""
 	@echo "Docker - Code Quality:"
 	@echo "  make docker-format         - Format code in Docker"
@@ -98,26 +99,38 @@ help:
 
 # Run all tests
 test:
-	pytest
+	@export JAVA_HOME=$${JAVA_HOME:-$$(/usr/libexec/java_home 2>/dev/null || echo "")}; \
+	pytest -x -vv --disable-warnings -p no:warnings
 
 # Run unit tests only
 test-unit:
-	pytest tests/unit -m unit
+	@export JAVA_HOME=$${JAVA_HOME:-$$(/usr/libexec/java_home 2>/dev/null || echo "")}; \
+	pytest -x -vv --disable-warnings -p no:warnings tests/unit -m unit
 
 # Run integration tests only
 test-integration:
-	pytest tests/integration -m integration
+	@export JAVA_HOME=$${JAVA_HOME:-$$(/usr/libexec/java_home 2>/dev/null || echo "")}; \
+	if [ -z "$$JAVA_HOME" ]; then \
+		echo "Error: JAVA_HOME could not be detected. Java is required for integration tests."; \
+		echo "Please set JAVA_HOME or install Java (Java 8 or 11 required for PySpark)."; \
+		exit 1; \
+	fi; \
+	echo "Using JAVA_HOME: $$JAVA_HOME"; \
+	pytest -x -vv --disable-warnings tests/integration -m integration
 
 # Run end-to-end tests only
 test-e2e:
+	@export JAVA_HOME=$${JAVA_HOME:-$$(/usr/libexec/java_home 2>/dev/null || echo "")}; \
 	pytest tests/e2e -m e2e
 
 # Run tests with coverage
 test-cov:
+	@export JAVA_HOME=$${JAVA_HOME:-$$(/usr/libexec/java_home 2>/dev/null || echo "")}; \
 	pytest --cov=acm_forecast --cov-report=term-missing
 
 # Run tests with HTML coverage report
 test-cov-html:
+	@export JAVA_HOME=$${JAVA_HOME:-$$(/usr/libexec/java_home 2>/dev/null || echo "")}; \
 	pytest --cov=acm_forecast --cov-report=html --cov-report=term-missing
 	@echo "Coverage report generated at htmlcov/index.html"
 
@@ -266,26 +279,30 @@ docker-run-pipeline:
 # Docker - Testing
 # ============================================================================
 
-# Run all tests in Docker
+# Run all tests in Docker (uses persistent dev container)
 docker-test:
-	docker compose run --rm acm-forecast-dev pytest
+	@./scripts/run_tests_in_docker.sh tests/ -v
 
 # Run unit tests in Docker
 docker-test-unit:
-	docker compose run --rm acm-forecast-dev pytest tests/unit -m unit
+	@./scripts/run_tests_in_docker.sh tests/unit/ -v
 
-# Run integration tests in Docker
+# Run integration tests in Docker (includes Delta table tests with Java)
 docker-test-integration:
-	docker compose run --rm acm-forecast-dev pytest tests/integration -m integration
+	@./scripts/run_tests_in_docker.sh tests/integration/ -v -m "integration and requires_spark"
 
 # Run e2e tests in Docker
 docker-test-e2e:
-	docker compose run --rm acm-forecast-dev pytest tests/e2e -m e2e
+	@./scripts/run_tests_in_docker.sh tests/e2e/ -v
 
-# Run tests with coverage in Docker
+# Run tests with coverage in Docker (terminal report)
 docker-test-cov:
-	docker compose run --rm acm-forecast-dev pytest --cov=acm_forecast --cov-report=term-missing --cov-report=html
-	@echo "Coverage report generated at htmlcov/index.html"
+	@./scripts/run_tests_in_docker.sh tests/ --cov=acm_forecast --cov-report=term-missing
+
+# Run tests with coverage in Docker (HTML report)
+docker-test-cov-html:
+	@./scripts/run_tests_in_docker.sh tests/ --cov=acm_forecast --cov-report=html --cov-report=term-missing
+	@echo "Coverage report available at htmlcov/index.html"
 
 # ============================================================================
 # Docker - Code Quality

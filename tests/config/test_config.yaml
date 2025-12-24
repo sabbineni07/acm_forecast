@@ -1,0 +1,133 @@
+# Test Configuration for ACM Forecast Framework
+# This configuration uses test Delta tables generated from sample data
+
+name: "test_azure_cost_forecasting"
+
+# ============================================================================
+# Data Configuration
+# ============================================================================
+data:
+  # Delta table configuration for testing
+  delta_table_path: "test_db.test_sample_costs"
+  database_name: "test_db"
+  table_name: "test_sample_costs"
+  
+  # Data constraints
+  min_historical_months: 1  # Lower for testing
+  max_data_delay_hours: 168  # 7 days
+  
+  # Regional distribution
+  primary_region: "East US"
+  primary_region_weight: 0.9
+  secondary_region: "South Central US"
+  secondary_region_weight: 0.1
+  
+  # Cost categories
+  cost_categories:
+    - "Compute"
+    - "Storage"
+    - "Network"
+    - "Database"
+    - "Analytics"
+    - "AI/ML"
+    - "Security"
+    - "Management"
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+model:
+  prophet:
+    yearly_seasonality: true
+    weekly_seasonality: true
+    daily_seasonality: false
+    seasonality_mode: "multiplicative"
+    changepoint_prior_scale: 0.05
+    holidays_prior_scale: 10.0
+    uncertainty_samples: 100  # Lower for faster testing
+  
+  arima:
+    seasonal: true
+    seasonal_period: 12
+    max_p: 3  # Lower for faster testing
+    max_d: 2
+    max_q: 3  # Lower for faster testing
+    information_criterion: "aic"
+  
+  xgboost:
+    n_estimators: 50  # Lower for faster testing
+    max_depth: 4  # Lower for faster testing
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    objective: "reg:squarederror"
+    early_stopping_rounds: 5
+
+# ============================================================================
+# Training Configuration
+# ============================================================================
+training:
+  train_split: 0.70
+  validation_split: 0.15
+  test_split: 0.15
+  min_training_months: 1  # Lower for testing
+  recommended_training_months: 3
+  validation_months: 1
+  test_months: 1
+  cv_initial: "60 days"  # Shorter for testing
+  cv_period: "15 days"
+  cv_horizon: "15 days"
+
+# ============================================================================
+# Feature Engineering Configuration
+# ============================================================================
+feature:
+  lag_periods: [1, 2, 3, 7, 14, 30]
+  rolling_windows: [3, 7, 14, 30]
+  target_column: "cost_in_billing_currency"
+  date_column: "usage_date"
+
+# ============================================================================
+# Performance Configuration
+# ============================================================================
+performance:
+  target_mape: 10.0
+  target_r2: 0.8
+  warning_mape: 12.0
+  critical_mape: 15.0
+  warning_missing_data: 5.0
+  critical_missing_data: 10.0
+
+# ============================================================================
+# Model Registry Configuration
+# ============================================================================
+registry:
+  mlflow_tracking_uri: "file:///tmp/test_mlruns"  # Test-specific MLflow location
+  mlflow_experiment_name: "/test/azure_cost_forecasting"
+  prophet_model_name: "test_azure_cost_forecast_prophet"
+  arima_model_name: "test_azure_cost_forecast_arima"
+  xgboost_model_name: "test_azure_cost_forecast_xgboost"
+  model_stages: ["None", "Staging", "Production"]
+
+# ============================================================================
+# Monitoring Configuration
+# ============================================================================
+monitoring:
+  monthly_retraining: true
+  quarterly_retraining: true
+  retraining_trigger_mape: 15.0
+  max_months_without_retraining: 6
+  realtime_monitoring: false  # Disabled for testing
+  daily_reports: false
+  weekly_reports: false
+  monthly_reports: false
+
+# ============================================================================
+# Forecast Configuration
+# ============================================================================
+forecast:
+  forecast_horizons_days: [30, 60, 90]  # Shorter horizons for testing
+  daily_forecasts: true
+  weekly_forecasts: true
+  monthly_forecasts: true
+

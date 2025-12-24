@@ -61,7 +61,8 @@ class ARIMAForecaster:
             kpss_result = kpss(timeseries.dropna())
             kpss_stat = kpss_result[0]
             kpss_pvalue = kpss_result[1]
-        except:
+        except Exception as e:
+            logger.warning(f"KPSS test failed for {self.category}: {e}")
             kpss_stat = None
             kpss_pvalue = None
         

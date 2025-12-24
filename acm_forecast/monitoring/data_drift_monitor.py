@@ -130,7 +130,7 @@ class DataDriftMonitor:
                 )
                 results[baseline_name] = drift_result
             except Exception as e:
-                logger.warning(f"Could not detect drift for {baseline_name}: {e}")
+                logger.warning(f"Could not detect drift for {baseline_name}: {e}", exc_info=True)
         
         return results
 

@@ -6,8 +6,9 @@ Section 3.1: Data Sourcing
 from typing import Optional, Dict, Any
 import pandas as pd
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col, sum as spark_sum, avg, count
+from pyspark.sql.functions import col, sum as spark_sum, avg, count, min as spark_min, max as spark_max
 import logging
+from datetime import date
 
 from ..config import AppConfig
 
@@ -87,9 +88,10 @@ class DataSource:
         # Date range (using snake_case)
         date_col = self.config.feature.date_column
         target_col = self.config.feature.target_column
-        date_stats = df.agg(
-            {date_col: "min", date_col: "max"}
-        ).collect()[0]
+        date_stats = df.select(
+            spark_min(col(date_col)).alias("min_date"),
+            spark_max(col(date_col)).alias("max_date")
+        ).collect()[0].asDict()
         
         # Regional distribution
         region_dist = df.groupBy("resource_location").agg(
@@ -106,8 +108,8 @@ class DataSource:
         profile = {
             "total_records": total_records,
             "date_range": {
-                "start": date_stats.get(f"min({date_col})"),
-                "end": date_stats.get(f"max({date_col})")
+                "start": date_stats.get("min_date"),
+                "end": date_stats.get("max_date")
             },
             "regional_distribution": region_dist.to_dict("records"),
             "category_distribution": category_dist.to_dict("records")
@@ -130,14 +132,14 @@ class DataSource:
         # Check for missing dates
         date_col = self.config.feature.date_column
         date_range = df.agg(
-            {date_col: "min", date_col: "max"}
-        ).collect()[0]
+            spark_min(col(date_col)).alias("min_date"),
+            spark_max(col(date_col)).alias("max_date")
+        ).collect()[0].asDict()
         
         # Check data freshness (Section 3.1.4)
-        from datetime import datetime, timedelta
-        latest_date = date_range.get(f"max({date_col})")
+        latest_date = date_range.get("max_date")
         if latest_date and self.config.data.max_data_delay_hours:
-            hours_since_update = (datetime.now() - latest_date).total_seconds() / 3600
+            hours_since_update = (date.today() - latest_date).total_seconds() / 3600
             is_fresh = hours_since_update <= self.config.data.max_data_delay_hours
         else:
             is_fresh = False

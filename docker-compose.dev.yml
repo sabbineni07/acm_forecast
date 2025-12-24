@@ -14,15 +14,13 @@ services:
       target: development
     container_name: acm-forecast-dev
     volumes:
-      - ./acm_forecast:/app/acm_forecast
-      - ./tests:/app/tests
-      - ./data:/app/data
-      - ./outputs:/app/outputs
-      - ./logs:/app/logs
-      - ./acm_forecast/config/config.yaml:/app/acm_forecast/config/config.yaml:ro
+      - .:/app
+      - test-coverage:/app/htmlcov
     environment:
       - PYTHONPATH=/app
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - JAVA_HOME=/usr/lib/jvm/default-java
+      - PATH=/usr/lib/jvm/default-java/bin:${PATH}
     depends_on:
       - mlflow
     networks:

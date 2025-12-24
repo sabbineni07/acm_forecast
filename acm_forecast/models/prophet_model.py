@@ -141,7 +141,7 @@ class ProphetForecaster:
             return metrics
             
         except Exception as e:
-            logger.error(f"Cross-validation failed for {self.category}: {e}")
+            logger.error(f"Cross-validation failed for {self.category}: {e}", exc_info=True)
             return {
                 'rmse': np.nan,
                 'mae': np.nan,

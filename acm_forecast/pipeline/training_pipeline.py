@@ -135,7 +135,7 @@ class TrainingPipeline:
                 'metrics': prophet_metrics
             }
         except Exception as e:
-            logger.error(f"Prophet training failed: {e}")
+            logger.error(f"Prophet training failed: {e}", exc_info=True)
             results['prophet'] = {'error': str(e)}
         
         # Train ARIMA
@@ -155,7 +155,7 @@ class TrainingPipeline:
                 'metrics': arima_metrics
             }
         except Exception as e:
-            logger.error(f"ARIMA training failed: {e}")
+            logger.error(f"ARIMA training failed: {e}", exc_info=True)
             results['arima'] = {'error': str(e)}
         
         # Train XGBoost
@@ -177,7 +177,7 @@ class TrainingPipeline:
                 'metrics': xgboost_metrics
             }
         except Exception as e:
-            logger.error(f"XGBoost training failed: {e}")
+            logger.error(f"XGBoost training failed: {e}", exc_info=True)
             results['xgboost'] = {'error': str(e)}
         
         # Step 7: Compare models (Section 6.1)

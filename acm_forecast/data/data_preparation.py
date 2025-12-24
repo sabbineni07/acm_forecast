@@ -53,22 +53,25 @@ class DataPreparation:
         if group_by is None:
             group_by = []
         
-        # Base grouping columns (handle DATE type - convert to timestamp for date_trunc if needed)
-        # usage_date is DATE type, so we can use it directly with to_date if it's string, or date_trunc if timestamp
+        # Base grouping columns (handle DATE type - convert to timestamp for date_trunc, then back to date)
+        # usage_date is DATE type, so we use date_trunc which returns timestamp, then convert back to date
         date_col_expr = col(self.config.feature.date_column)
-        # If it's already a date type, use date_trunc; if string, convert first
-        grouping_cols = [date_trunc("day", date_col_expr).alias("date")]
+        # date_trunc returns timestamp, convert back to date for proper Pandas handling
+        grouping_cols = [to_date(date_trunc("day", date_col_expr)).alias("date")]
         grouping_cols.extend([col(col_name) for col_name in group_by])
         
         # Aggregate
+        target_col = self.config.feature.target_column
         aggregated = df.groupBy(*grouping_cols).agg(
-            spark_sum(self.config.feature.target_column).alias("daily_cost"),
+            spark_sum(target_col).alias("daily_cost"),
             spark_sum("quantity").alias("total_quantity"),
             sqlf.avg("effective_price").alias("avg_rate")
         )
         
         # Rename date column back to usage_date for consistency
         aggregated = aggregated.withColumnRenamed("date", self.config.feature.date_column)
+        # Rename daily_cost back to target column name for downstream processing
+        aggregated = aggregated.withColumnRenamed("daily_cost", target_col)
         
         logger.info(f"Aggregated to {aggregated.count()} daily records")
         return aggregated

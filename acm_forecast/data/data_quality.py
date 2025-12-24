@@ -5,9 +5,10 @@ Section 3.1.4: Data Reliability
 
 from typing import Dict, Any, Optional
 import pandas as pd
-from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import SparkSession, DataFrame, functions as sqlf
 from pyspark.sql.functions import col, count, sum as spark_sum, isnull, isnan
 import logging
+from datetime import datetime, date
 
 from ..config import AppConfig
 
@@ -55,9 +56,16 @@ class DataQualityValidator:
         missing_counts = {}
         for col_name in key_columns:
             if col_name in df.columns:
-                missing_count = df.filter(
-                    isnull(col(col_name)) | isnan(col(col_name))
-                ).count()
+                # Check column data type - DATE columns can't use isnan()
+                col_type = dict(df.dtypes)[col_name]
+                if col_type in ['date', 'timestamp', 'string']:
+                    # For date/timestamp/string columns, only check isnull
+                    missing_count = df.filter(isnull(col(col_name))).count()
+                else:
+                    # For numeric columns, check both isnull and isnan
+                    missing_count = df.filter(
+                        isnull(col(col_name)) | isnan(col(col_name))
+                    ).count()
                 missing_counts[col_name] = {
                     "count": missing_count,
                     "percentage": (missing_count / total_records * 100) if total_records > 0 else 0
@@ -89,31 +97,33 @@ class DataQualityValidator:
         """
         # Check for negative costs (should not exist)
         target_col = self.config.feature.target_column
-        negative_costs = df.filter(col(target_col) < 0).count()
+        negative_costs = df.filter(sqlf.col(target_col) < 0).count()
         
         # Check for zero costs (may be valid, but flag for review)
-        zero_costs = df.filter(col(target_col) == 0).count()
+        zero_costs = df.filter(sqlf.col(target_col) == 0).count()
         
         # Check currency consistency (should be USD)
-        currency_check = df.filter(col("billing_currency_code") != "USD").count() if "billing_currency_code" in df.columns else 0
-        
+        currency_check = df.filter(sqlf.col("billing_currency_code") != "USD").count() if "billing_currency_code" in df.columns else 0
+
         # Check date range validity
         date_col = self.config.feature.date_column
-        date_stats = df.agg(
-            {date_col: "min", date_col: "max"}
+        date_stats = df.select(
+            sqlf.min(sqlf.col(date_col)).alias("min_date"),
+            sqlf.max(sqlf.col(date_col)).alias("max_date")
         ).collect()[0]
-        
+        if date_stats:
+            date_stats = date_stats.asDict()
+
         results = {
             "negative_costs": negative_costs,
             "zero_costs": zero_costs,
             "non_usd_currency": currency_check,
             "date_range": {
-                "min": date_stats.get(f"min({date_col})"),
-                "max": date_stats.get(f"max({date_col})")
+                "min": date_stats.get("min_date"),
+                "max": date_stats.get("max_date")
             },
             "data_quality_issues": negative_costs > 0 or currency_check > 0
         }
-        
         return results
     
     def validate_consistency(self, df: DataFrame) -> Dict[str, Any]:
@@ -153,15 +163,13 @@ class DataQualityValidator:
         Returns:
             Timeliness validation results
         """
-        from datetime import datetime
-        
         # Get latest date in data
         date_col = self.config.feature.date_column
-        latest_date = df.agg({date_col: "max"}).collect()[0][f"max({date_col})"]
+        latest_date = df.select(sqlf.max(sqlf.col(date_col)).alias("max_date")).collect()[0].asDict().get("max_date")
         
         if latest_date:
             # Calculate hours since last update
-            hours_since_update = (datetime.now() - latest_date).total_seconds() / 3600
+            hours_since_update = (date.today() - latest_date).total_seconds() / 3600
             
             # Check if data is fresh (within SLA)
             max_delay = self.config.data.max_data_delay_hours or 168
