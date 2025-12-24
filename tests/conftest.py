@@ -2,13 +2,13 @@
 Pytest configuration and shared fixtures
 """
 import pytest
-import warnings
 import tempfile
-import yaml
+import sys
 from pathlib import Path
-from typing import Dict, Any
+from pyspark.sql import SparkSession
+from delta import configure_spark_with_delta_pip
 import os
-import pandas as pd
+import yaml
 from acm_forecast.config import AppConfig, DataConfig, ModelConfig, TrainingConfig, FeatureConfig
 from acm_forecast.config import PerformanceConfig, RegistryConfig, MonitoringConfig, ForecastConfig
 from acm_forecast.config import ProphetConfig, ArimaConfig, XGBoostConfig
@@ -238,61 +238,28 @@ def spark_session():
     Note: Requires Java 8 or 11 to be installed and JAVA_HOME set.
     Tests will be skipped if Java is not available.
     """
-    try:
-        from pyspark.sql import SparkSession
-        from delta import configure_spark_with_delta_pip
-        import os
+    builder = SparkSession.builder \
+        .appName("ACM_Forecast_Test") \
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+        .config("spark.sql.warehouse.dir", "/tmp/test_spark_warehouse") \
+        .config("spark.driver.memory", "2g") \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .config("spark.driver.host", "127.0.0.1") \
+        .config("spark.driver.bindAddress", "127.0.0.1") \
+        .config("spark.ui.enabled", "false") \
+        .config("spark.executor.memory", "1g") \
+        .config("spark.executor.cores", "1")
 
-        # Check for Java
-        # java_home = os.environ.get("JAVA_HOME")
-        # if not java_home:
-        #     pytest.skip("JAVA_HOME not set. Java 8 or 11 is required for PySpark tests.")
-
-        builder = SparkSession.builder \
-            .appName("ACM_Forecast_Test") \
-            .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-            .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
-            .config("spark.sql.warehouse.dir", "/tmp/test_spark_warehouse") \
-            .config("spark.driver.memory", "2g") \
-            .config("spark.sql.adaptive.enabled", "true") \
-            .config("spark.driver.host", "127.0.0.1") \
-            .config("spark.driver.bindAddress", "127.0.0.1") \
-            .config("spark.ui.enabled", "false") \
-            .config("spark.executor.memory", "1g") \
-            .config("spark.executor.cores", "1")
-
-        try:
-            spark = configure_spark_with_delta_pip(builder).getOrCreate()
-        except Exception as e:
-            # if "JAVA_GATEWAY_EXITED" in str(e) or "Java" in str(e):
-            #     pytest.skip(f"Java is required but not available: {e}")
-            raise e
-            # Fallback if delta-pip not available
-            # spark = builder.getOrCreate()
-
-        yield spark
-        spark.sparkContext.stop()
-        spark.stop()
-
-        # # Suppress the ResourceWarning only during teardown
-        # with warnings.catch_warnings():
-        #     warnings.filterwarnings("ignore", category=ResourceWarning, message="unclosed <socket.socket.*")
-        #     spark.sparkContext.stop()
-        #     spark.stop()
-    # except ImportError as e:
-    #     pytest.skip(f"PySpark or Delta Lake not available: {e}")
-    except Exception as e:
-        # if "JAVA_GATEWAY_EXITED" in str(e) or "Java" in str(e) or "java" in str(e).lower():
-        #     pytest.skip(f"Java is required but not available: {e}")
-        raise e
+    spark = configure_spark_with_delta_pip(builder).getOrCreate()
+    yield spark
+    spark.sparkContext.stop()
+    spark.stop()
 
 
 @pytest.fixture(scope="session")
 def test_delta_table_path(tmp_path_factory, spark_session):
     """Generate test Delta table and return path"""
-    import sys
-    from pathlib import Path
-    
     # Get test config path
     test_config_path = Path(__file__).parent / "config" / "test_config.yaml"
     
@@ -314,71 +281,18 @@ def test_delta_table_path(tmp_path_factory, spark_session):
         from scripts.generate_sample_cost_data import generate_sample_data
         from datetime import datetime
         
-        # Generate 90 days of sample data
-        df = generate_sample_data(
+        # Generate 90 days of sample data (returns PySpark DataFrame)
+        print(f"  Generating sample data...")
+        spark_df = generate_sample_data(
+            spark_session=spark_session,
             days=90,
             records_per_day=50,
             subscription_count=3,
             start_date=datetime(2024, 1, 1)
         )
         
-        # Convert usage_date to pandas datetime
-        df['usage_date'] = pd.to_datetime(df['usage_date'])
-        
-        # Convert DataFrame to list of dictionaries to avoid numpy dtype pickle issues
-        # This ensures all types are Python native
-        print(f"  Converting {len(df):,} records to Python dicts...")
-        from datetime import datetime as dt
-        rows = []
-        for _, row in df.iterrows():
-            # Convert pandas Timestamp to Python datetime
-            usage_date_val = row['usage_date']
-            if pd.isna(usage_date_val):
-                usage_date_val = None
-            elif isinstance(usage_date_val, pd.Timestamp):
-                usage_date_val = usage_date_val.to_pydatetime()
-            elif isinstance(usage_date_val, str):
-                usage_date_val = pd.to_datetime(usage_date_val).to_pydatetime()
-            
-            rows.append({
-                'usage_date': usage_date_val,
-                'cost_in_billing_currency': float(row['cost_in_billing_currency']),
-                'quantity': float(row['quantity']),
-                'meter_category': str(row['meter_category']),
-                'resource_location': str(row['resource_location']),
-                'subscription_id': str(row['subscription_id']),
-                'effective_price': float(row['effective_price']),
-                'billing_currency_code': str(row['billing_currency_code']),
-                'plan_name': str(row['plan_name']),
-                'meter_sub_category': str(row['meter_sub_category']),
-                'unit_of_measure': str(row['unit_of_measure']),
-            })
-        
-        # Convert to Spark DataFrame with explicit schema
-        print(f"  Creating Spark DataFrame...")
-        from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType
-        from pyspark.sql.functions import to_date
-        
-        # Use TimestampType first (Spark handles pandas datetime as timestamp)
-        schema = StructType([
-            StructField("usage_date", TimestampType(), True),
-            StructField("cost_in_billing_currency", DoubleType(), True),
-            StructField("quantity", DoubleType(), True),
-            StructField("meter_category", StringType(), True),
-            StructField("resource_location", StringType(), True),
-            StructField("subscription_id", StringType(), True),
-            StructField("effective_price", DoubleType(), True),
-            StructField("billing_currency_code", StringType(), True),
-            StructField("plan_name", StringType(), True),
-            StructField("meter_sub_category", StringType(), True),
-            StructField("unit_of_measure", StringType(), True),
-        ])
-        
-        # Create Spark DataFrame from list of dicts
-        spark_df = spark_session.createDataFrame(rows, schema=schema)
-        
-        # Convert timestamp to date type
-        spark_df = spark_df.withColumn("usage_date", to_date(spark_df["usage_date"]))
+        record_count = spark_df.count()
+        print(f"  Generated {record_count:,} records")
         
         # Write as Delta table
         print(f"  Writing Delta table to: {delta_table_path}")
@@ -397,7 +311,7 @@ def test_delta_table_path(tmp_path_factory, spark_session):
             LOCATION '{delta_table_path}'
         """)
         
-        print(f"✅ Test Delta table created with {len(df):,} records")
+        print(f"✅ Test Delta table created with {record_count:,} records")
         return delta_table_path
         
     except Exception as e:
@@ -410,19 +324,11 @@ def test_delta_table_path(tmp_path_factory, spark_session):
 @pytest.fixture
 def test_app_config(tmp_path, test_delta_table_path):
     """Create AppConfig from test config with actual Delta table path"""
-    import yaml
-    from pathlib import Path
-    from acm_forecast.config import AppConfig
-    
     # Load test config
     test_config_path = Path(__file__).parent / "config" / "test_config.yaml"
     with open(test_config_path) as f:
         config_data = yaml.safe_load(f)
-    
-    # Update Delta table path to use generated table
-    # The config uses test_db.test_sample_costs, which should work if table is registered
-    # If not, we can override with full path
-    
+
     # Create temporary config file
     temp_config_file = tmp_path / "test_config.yaml"
     with open(temp_config_file, 'w') as f:
