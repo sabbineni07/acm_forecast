@@ -1,0 +1,3 @@
+# This directory is for data files
+# Mount this as a volume in Docker to persist data
+

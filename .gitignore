@@ -90,3 +90,22 @@ docker-compose.override.yml
 .env.azure
 .env.azure.local
 
+# Generated data files (keep .gitkeep files)
+data/*.csv
+data/*.parquet
+data/*.delta
+data/*.json
+data/test_*
+!data/.gitkeep
+
+# Generated outputs
+outputs/*
+!outputs/.gitkeep
+
+# Log files
+logs/*
+!logs/.gitkeep
+
+# MLflow runs
+mlruns/
+
