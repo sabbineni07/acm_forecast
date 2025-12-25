@@ -273,23 +273,27 @@ def test_delta_table_path(tmp_path_factory, spark_session):
         # Table exists, return path
         return delta_table_path
     
-    # Generate sample data
+    # Generate sample data using DataSource directly
     print("\nGenerating test Delta table...")
     try:
-        # Import sample data generator
-        sys.path.insert(0, str(Path(__file__).parent.parent))
-        from scripts.generate_sample_cost_data import generate_sample_data
-        from datetime import datetime
+        from acm_forecast.data.data_source import DataSource
+        from acm_forecast.config import AppConfig
         
-        # Generate 90 days of sample data (returns PySpark DataFrame)
-        print(f"  Generating sample data...")
-        spark_df = generate_sample_data(
-            spark_session=spark_session,
-            days=90,
-            records_per_day=50,
-            subscription_count=3,
-            start_date=datetime(2024, 1, 1)
-        )
+        # Load test config
+        test_config_path = Path(__file__).parent / "config" / "test_config.yaml"
+        test_config = AppConfig.from_yaml(str(test_config_path))
+        
+        # Enable sample data generation
+        test_config.data.generate_sample_data = True
+        test_config.data.sample_data_days = 90
+        test_config.data.sample_data_records_per_day = 50
+        test_config.data.sample_data_subscriptions = 3
+        test_config.data.sample_data_start_date = "2024-01-01"
+        
+        # Create DataSource and generate sample data
+        data_source = DataSource(test_config, spark_session)
+        print(f"  Generating sample data using DataSource...")
+        spark_df = data_source.generate_sample_data()
         
         record_count = spark_df.count()
         print(f"  Generated {record_count:,} records")
@@ -316,9 +320,7 @@ def test_delta_table_path(tmp_path_factory, spark_session):
         
     except Exception as e:
         print(f"⚠️  Could not generate Delta table: {e}")
-        # Raise the error instead of skipping to catch real issues
         raise e
-        # pytest.skip(f"Delta table generation failed: {e}")
 
 
 @pytest.fixture

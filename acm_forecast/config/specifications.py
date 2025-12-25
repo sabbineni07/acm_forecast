@@ -34,6 +34,13 @@ class DataConfig:
     secondary_region: Optional[str] = None
     secondary_region_weight: Optional[float] = Field(None, ge=0.0, le=1.0, description="Secondary region weight (0-1)")
     cost_categories: Optional[List[str]] = None
+    
+    # Sample data generation (for development/testing)
+    generate_sample_data: Optional[bool] = Field(False, description="If true, generate sample data instead of loading from Delta table")
+    sample_data_days: Optional[int] = Field(365, ge=1, description="Number of days of sample data to generate")
+    sample_data_records_per_day: Optional[int] = Field(100, ge=1, description="Average number of records per day in sample data")
+    sample_data_subscriptions: Optional[int] = Field(3, ge=1, description="Number of different subscriptions in sample data")
+    sample_data_start_date: Optional[str] = Field(None, description="Start date for sample data generation (YYYY-MM-DD, defaults to days ago from today)")
 
 
 @dataclass

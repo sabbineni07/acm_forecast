@@ -7,12 +7,48 @@ from typing import Optional, Dict, Any
 import pandas as pd
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, sum as spark_sum, avg, count, min as spark_min, max as spark_max
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, DateType
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta
+import uuid
+import random
 
 from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
+
+# Azure regions for sample data generation
+AZURE_REGIONS = ["East US", "East US 2", "South Central US"]
+
+# Meter categories (matching framework expectations)
+METER_CATEGORIES = {
+    "Compute": ["Virtual Machines", "Container Instances", "App Service", "Functions"],
+    "Storage": ["Blob Storage", "File Storage", "Table Storage", "Queue Storage", "Disk Storage"],
+    "Network": ["Bandwidth", "Load Balancer", "VPN Gateway", "ExpressRoute", "DNS"],
+    "Database": ["SQL Database", "Cosmos DB", "PostgreSQL", "MySQL", "Redis Cache"],
+    "Analytics": ["Databricks", "HDInsight", "Synapse Analytics", "Stream Analytics"],
+    "AI/ML": ["Cognitive Services", "Azure ML", "Bot Services", "Computer Vision"],
+    "Security": ["Key Vault", "Active Directory", "Security Center", "DDoS Protection"],
+    "Management": ["Monitor", "Log Analytics", "Automation", "Backup", "Site Recovery"]
+}
+
+# Service tiers (for plan_name)
+SERVICE_TIERS = ["Basic", "Standard", "Premium", "Free", "Enterprise"]
+
+# Currency
+CURRENCY = "USD"
+
+# Units by category
+UNITS = {
+    "Compute": ["Hours", "vCPU-hours"],
+    "Storage": ["GB-Month", "GB", "TB"],
+    "Network": ["GB", "MB"],
+    "Database": ["DTU-hours", "vCore-hours", "GB-Month"],
+    "Analytics": ["DBU-hours", "Node-hours"],
+    "AI/ML": ["Transactions", "Hours"],
+    "Security": ["Hours", "Transactions"],
+    "Management": ["GB", "Hours"]
+}
 
 
 class DataSource:
@@ -37,25 +73,199 @@ class DataSource:
         self.delta_table_path = config.data.delta_table_path
         self.database_name = config.data.database_name
         self.table_name = config.data.table_name
+    
+    @staticmethod
+    def _generate_subscription_id() -> str:
+        """Generate a synthetic Azure subscription ID (GUID format)"""
+        return str(uuid.uuid4())
+    
+    @staticmethod
+    def _generate_date_range(start_date: datetime, days: int):
+        """Generate a list of dates"""
+        return [start_date + timedelta(days=i) for i in range(days)]
+    
+    @staticmethod
+    def _generate_time_series_cost(base_cost: float, trend: float, seasonality: bool = True) -> float:
+        """
+        Generate realistic cost with trend and seasonality
+        
+        Args:
+            base_cost: Base cost value
+            trend: Trend coefficient (e.g., 0.001 for 0.1% growth per day)
+            seasonality: Add weekly seasonality
+            
+        Returns:
+            Generated cost value (as Python float)
+        """
+        # Add trend
+        cost = base_cost * (1 + trend)
+        
+        # Add weekly seasonality (lower costs on weekends)
+        if seasonality:
+            day_of_week = random.randint(0, 6)
+            if day_of_week >= 5:  # Weekend
+                cost *= 0.7
+            else:  # Weekday
+                cost *= 1.1
+        
+        # Add random variation (using Python random to avoid numpy types)
+        cost *= random.uniform(0.8, 1.2)
+        
+        # Ensure positive and convert to Python float
+        return float(max(cost, 0.01))
+    
+    def generate_sample_data(self) -> DataFrame:
+        """
+        Generate synthetic Azure cost management data with REQUIRED columns only
+        Uses configuration from self.config.data for generation parameters
+        
+        Returns:
+            PySpark DataFrame with synthetic cost data using snake_case column names.
+            The DataFrame has the following schema:
+            - usage_date (DateType)
+            - cost_in_billing_currency (DoubleType)
+            - quantity (DoubleType)
+            - meter_category (StringType)
+            - resource_location (StringType)
+            - subscription_id (StringType)
+            - effective_price (DoubleType)
+            - billing_currency_code (StringType)
+            - plan_name (StringType)
+            - meter_sub_category (StringType)
+            - unit_of_measure (StringType)
+        """
+        if self.spark is None:
+            raise ValueError("SparkSession is required for data generation")
+        
+        # Get generation parameters from config
+        days = self.config.data.sample_data_days or 365
+        records_per_day = self.config.data.sample_data_records_per_day or 100
+        subscription_count = self.config.data.sample_data_subscriptions or 3
+        
+        # Parse start date
+        if self.config.data.sample_data_start_date:
+            start_date = datetime.strptime(self.config.data.sample_data_start_date, "%Y-%m-%d")
+        else:
+            start_date = datetime.now() - timedelta(days=days)
+        
+        logger.info(f"Generating {days} days of sample data ({records_per_day} records/day, {subscription_count} subscriptions)")
+        
+        # Generate subscriptions
+        subscriptions = [self._generate_subscription_id() for _ in range(subscription_count)]
+        
+        # Generate dates
+        dates = self._generate_date_range(start_date, days)
+        
+        # Prepare data lists
+        rows = []
+        
+        # Generate records for each day
+        for date_val in dates:
+            # Vary records per day slightly (using Python random to avoid numpy types)
+            num_records = int(records_per_day * random.uniform(0.8, 1.2))
+            
+            for _ in range(num_records):
+                # Select category and subcategory (using Python random)
+                category = random.choice(list(METER_CATEGORIES.keys()))
+                subcategory = random.choice(METER_CATEGORIES[category])
+                
+                # Generate base cost with trend (using Python random)
+                base_cost = random.uniform(10, 1000)
+                cost = self._generate_time_series_cost(base_cost, 0.001)
+                
+                # Generate usage quantity (using Python random)
+                quantity = cost / random.uniform(0.01, 1.0)
+                effective_price = cost / quantity if quantity > 0 else random.uniform(0.01, 1.0)
+                
+                # Generate resource details (using Python random)
+                region = random.choice(AZURE_REGIONS)
+                subscription_id = random.choice(subscriptions)
+                tier = random.choice(SERVICE_TIERS)
+                unit = random.choice(UNITS[category])
+                
+                # Create record with REQUIRED and RECOMMENDED columns only
+                # Ensure all values are native Python types (not numpy types)
+                record = (
+                    date_val.date(),  # usage_date - DATE type
+                    float(round(cost, 10)),  # cost_in_billing_currency (ensure Python float)
+                    float(round(quantity, 6)),  # quantity (ensure Python float)
+                    str(category),  # meter_category (ensure Python str)
+                    str(region),  # resource_location (ensure Python str)
+                    str(subscription_id),  # subscription_id (ensure Python str)
+                    float(round(effective_price, 10)),  # effective_price (ensure Python float)
+                    str(CURRENCY),  # billing_currency_code (ensure Python str)
+                    str(f"{subcategory} - {tier}"),  # plan_name (ensure Python str)
+                    str(subcategory),  # meter_sub_category (ensure Python str)
+                    str(unit),  # unit_of_measure (ensure Python str)
+                )
+                
+                rows.append(record)
+        
+        # Define schema
+        schema = StructType([
+            StructField("usage_date", DateType(), True),
+            StructField("cost_in_billing_currency", DoubleType(), True),
+            StructField("quantity", DoubleType(), True),
+            StructField("meter_category", StringType(), True),
+            StructField("resource_location", StringType(), True),
+            StructField("subscription_id", StringType(), True),
+            StructField("effective_price", DoubleType(), True),
+            StructField("billing_currency_code", StringType(), True),
+            StructField("plan_name", StringType(), True),
+            StructField("meter_sub_category", StringType(), True),
+            StructField("unit_of_measure", StringType(), True),
+        ])
+        
+        # Create PySpark DataFrame
+        df = self.spark.createDataFrame(rows, schema=schema)
+        
+        # Sort by date
+        df = df.orderBy("usage_date")
+        
+        record_count = df.count()
+        logger.info(f"Generated {record_count:,} records from {dates[0].date()} to {dates[-1].date()}")
+        
+        return df
         
     def load_from_delta(self, 
                        start_date: Optional[str] = None,
                        end_date: Optional[str] = None,
                        category: Optional[str] = None) -> DataFrame:
         """
-        Load data from Delta table (Section 3.1.1)
+        Load data from Delta table or generate sample data (Section 3.1.1)
+        
+        If config.data.generate_sample_data is True, generates sample data instead of loading from Delta.
+        Otherwise, loads data from the configured Delta table.
         
         Args:
-            start_date: Start date filter (YYYY-MM-DD)
-            end_date: End date filter (YYYY-MM-DD)
-            category: MeterCategory filter
+            start_date: Start date filter (YYYY-MM-DD) - only used when loading from Delta
+            end_date: End date filter (YYYY-MM-DD) - only used when loading from Delta
+            category: MeterCategory filter - only used when loading from Delta
             
         Returns:
             Spark DataFrame with Azure cost data
         """
         if self.spark is None:
-            raise ValueError("SparkSession is required for Delta table access")
+            raise ValueError("SparkSession is required")
         
+        # Check if sample data generation is enabled
+        if self.config.data.generate_sample_data:
+            logger.info("Sample data generation enabled - generating synthetic data")
+            df = self.generate_sample_data()
+            
+            # Apply filters if provided (for consistency with Delta loading)
+            date_col = self.config.feature.date_column
+            if start_date:
+                df = df.filter(col(date_col) >= start_date)
+            if end_date:
+                df = df.filter(col(date_col) <= end_date)
+            if category:
+                df = df.filter(col("meter_category") == category)
+            
+            logger.info(f"Generated and filtered to {df.count()} records")
+            return df
+        
+        # Load from Delta table (original behavior)
         logger.info(f"Loading data from {self.delta_table_path}")
         
         # Read from Delta table

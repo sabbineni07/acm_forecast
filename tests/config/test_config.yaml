@@ -32,6 +32,13 @@ data:
     - "AI/ML"
     - "Security"
     - "Management"
+  
+  # Sample data generation (for testing - not used when loading from Delta table)
+  generate_sample_data: false  # Tests generate Delta table separately
+  sample_data_days: 90
+  sample_data_records_per_day: 50
+  sample_data_subscriptions: 3
+  sample_data_start_date: "2024-01-01"
 
 # ============================================================================
 # Model Configuration

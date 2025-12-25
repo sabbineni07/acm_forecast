@@ -33,6 +33,14 @@ data:
     - "AI/ML"
     - "Security"
     - "Management"
+  
+  # Sample data generation (for development/testing)
+  # Set generate_sample_data: true to generate synthetic data instead of loading from Delta
+  generate_sample_data: false
+  sample_data_days: 365  # Number of days of historical data
+  sample_data_records_per_day: 100  # Average records per day
+  sample_data_subscriptions: 3  # Number of different subscriptions
+  sample_data_start_date: null  # Start date (YYYY-MM-DD, null = days ago from today)
 
 # ============================================================================
 # Model Configuration
