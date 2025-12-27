@@ -1,9 +1,8 @@
 """
-XGBoost Model Implementation
-Section 4.2.1: Model Methodology - XGBoost
-Section 5.2.1: Model Estimation - XGBoost
-Section 5.2.3: Final Model Specification - XGBoost
-Section 5.2.4: Model Diagnostics - XGBoost
+XGBoost Model Plugin
+
+PRIMARY IMPLEMENTATION for XGBoost time series forecasting.
+The actual implementation is here - XGBoostForecaster class delegates to this.
 """
 
 from typing import Dict, Optional, List, Tuple
@@ -15,27 +14,32 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import logging
 
-from ..config import AppConfig
-from ..data.feature_engineering import FeatureEngineer
+from ...core.interfaces import IModel
+from ...core.base_plugin import BasePlugin
+from ...config import AppConfig
+from ...data.feature_engineering import FeatureEngineer
 
 logger = logging.getLogger(__name__)
 
 
-class XGBoostForecaster:
+class XGBoostModelPlugin(BasePlugin, IModel):
     """
-    XGBoost model for time series forecasting
+    XGBoost model plugin - PRIMARY IMPLEMENTATION
     Section 4.2.1: XGBoost Model Methodology
+    Section 5.2.1: Model Estimation - XGBoost
+    Section 5.2.3: Final Model Specification - XGBoost
+    Section 5.2.4: Model Diagnostics - XGBoost
     """
     
-    def __init__(self, config: AppConfig, category: str = "Total"):
-        """
-        Initialize XGBoost forecaster
+    def __init__(self, config: AppConfig, category: str = "Total", **kwargs):
+        """Initialize XGBoost model plugin
         
         Args:
-            config: AppConfig instance containing configuration
+            config: AppConfig instance
             category: Cost category name
+            **kwargs: Plugin-specific configuration
         """
-        self.config = config
+        super().__init__(config, None, **kwargs)  # XGBoost doesn't need Spark
         self.category = category
         self.model = None
         self.scaler = StandardScaler()
@@ -65,6 +69,141 @@ class XGBoostForecaster:
         logger.info(f"Created XGBoost model for {self.category}")
         return model
     
+    def train(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Train XGBoost model (Section 5.2.1)
+        
+        Args:
+            df: Training DataFrame with features
+            
+        Returns:
+            Dictionary with training results
+        """
+        logger.info(f"Training XGBoost model for {self.category}")
+        
+        # Prepare features
+        X, y = self.prepare_features(df)
+        
+        # Time series split (chronological)
+        test_size = 0.2
+        validation_size = 0.1
+        split_idx = int(len(X) * (1 - test_size - validation_size))
+        val_idx = int(len(X) * (1 - test_size))
+        
+        X_train = X.iloc[:split_idx]
+        X_val = X.iloc[split_idx:val_idx]
+        X_test = X.iloc[val_idx:]
+        
+        y_train = y.iloc[:split_idx]
+        y_val = y.iloc[split_idx:val_idx]
+        y_test = y.iloc[val_idx:]
+        
+        # Scale features
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_val_scaled = self.scaler.transform(X_val)
+        X_test_scaled = self.scaler.transform(X_test)
+        
+        # Create model
+        if self.model is None:
+            self.model = self.create_model()
+        
+        # Train with early stopping
+        xgboost_config = self.config.model.xgboost
+        self.model.fit(
+            X_train_scaled, y_train,
+            eval_set=[(X_val_scaled, y_val)],
+            early_stopping_rounds=xgboost_config.early_stopping_rounds or 10,
+            verbose=False
+        )
+        
+        self.is_trained = True
+        
+        logger.info(f"XGBoost model trained for {self.category}")
+        return {
+            "model": self.model,
+            "is_trained": True,
+            "category": self.category,
+            "feature_names": self.feature_names
+        }
+    
+    def predict(self, periods: int = 30, **kwargs) -> pd.DataFrame:
+        """
+        Generate predictions (Section 5.2.1)
+        
+        Note: XGBoost predict requires a DataFrame with features.
+        The periods parameter is ignored for XGBoost, use df parameter instead.
+        
+        Args:
+            periods: Not used for XGBoost (maintained for interface compatibility)
+            **kwargs: Must include 'df' parameter with DataFrame containing features
+            
+        Returns:
+            DataFrame with forecast values
+        """
+        if 'df' not in kwargs:
+            raise ValueError("XGBoost predict requires 'df' parameter with DataFrame containing features")
+        
+        df = kwargs['df']
+        if not self.is_trained:
+            raise ValueError("Model must be trained before prediction")
+        
+        # Prepare features
+        X, _ = self.prepare_features(df)
+        
+        # Ensure same features as training
+        missing_features = set(self.feature_names) - set(X.columns)
+        extra_features = set(X.columns) - set(self.feature_names)
+        
+        if missing_features:
+            for feat in missing_features:
+                X[feat] = 0
+        
+        if extra_features:
+            X = X[self.feature_names]
+        
+        # Scale features
+        X_scaled = self.scaler.transform(X)
+        
+        # Predict
+        forecast = self.model.predict(X_scaled)
+        
+        logger.info(f"Generated forecast for {self.category}")
+        return pd.DataFrame({'forecast': forecast})
+    
+    def save(self, path: str) -> None:
+        """
+        Save model to path
+        
+        Args:
+            path: Path to save model
+        """
+        if self.model is not None:
+            import pickle
+            with open(path, 'wb') as f:
+                pickle.dump({
+                    'model': self.model,
+                    'scaler': self.scaler,
+                    'feature_names': self.feature_names
+                }, f)
+            logger.info(f"Saved XGBoost model to {path}")
+    
+    def load(self, path: str) -> None:
+        """
+        Load model from path
+        
+        Args:
+            path: Path to load model from
+        """
+        import pickle
+        with open(path, 'rb') as f:
+            data = pickle.load(f)
+            self.model = data['model']
+            self.scaler = data['scaler']
+            self.feature_names = data['feature_names']
+        self.is_trained = True
+        logger.info(f"Loaded XGBoost model from {path}")
+    
+    # Additional methods for backward compatibility
     def prepare_features(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Prepare features for XGBoost (Section 5.1)
@@ -103,99 +242,6 @@ class XGBoostForecaster:
         
         logger.info(f"Prepared {len(feature_cols)} features for {self.category}")
         return X, y
-    
-    def train(self, 
-              df: pd.DataFrame,
-              test_size: float = 0.2,
-              validation_size: float = 0.1) -> xgb.XGBRegressor:
-        """
-        Train XGBoost model (Section 5.2.1)
-        
-        Args:
-            df: Training DataFrame with features
-            test_size: Proportion of data for testing
-            validation_size: Proportion of data for validation
-            
-        Returns:
-            Trained XGBoost model
-        """
-        logger.info(f"Training XGBoost model for {self.category}")
-        
-        # Prepare features
-        X, y = self.prepare_features(df)
-        
-        # Time series split (chronological)
-        # For time series, we should split chronologically, not randomly
-        split_idx = int(len(X) * (1 - test_size - validation_size))
-        val_idx = int(len(X) * (1 - test_size))
-        
-        X_train = X.iloc[:split_idx]
-        X_val = X.iloc[split_idx:val_idx]
-        X_test = X.iloc[val_idx:]
-        
-        y_train = y.iloc[:split_idx]
-        y_val = y.iloc[split_idx:val_idx]
-        y_test = y.iloc[val_idx:]
-        
-        # Scale features
-        X_train_scaled = self.scaler.fit_transform(X_train)
-        X_val_scaled = self.scaler.transform(X_val)
-        X_test_scaled = self.scaler.transform(X_test)
-        
-        # Create model
-        if self.model is None:
-            self.model = self.create_model()
-        
-        # Train with early stopping
-        xgboost_config = self.config.model.xgboost
-        self.model.fit(
-            X_train_scaled, y_train,
-            eval_set=[(X_val_scaled, y_val)],
-            early_stopping_rounds=xgboost_config.early_stopping_rounds or 10,
-            verbose=False
-        )
-        
-        self.is_trained = True
-        
-        logger.info(f"XGBoost model trained for {self.category}")
-        return self.model
-    
-    def predict(self, 
-                df: pd.DataFrame) -> np.ndarray:
-        """
-        Generate forecasts (Section 5.2.1)
-        
-        Args:
-            df: DataFrame with features (must have same features as training)
-            
-        Returns:
-            Forecast array
-        """
-        if not self.is_trained:
-            raise ValueError("Model must be trained before prediction")
-        
-        # Prepare features
-        X, _ = self.prepare_features(df)
-        
-        # Ensure same features as training
-        missing_features = set(self.feature_names) - set(X.columns)
-        extra_features = set(X.columns) - set(self.feature_names)
-        
-        if missing_features:
-            for feat in missing_features:
-                X[feat] = 0
-        
-        if extra_features:
-            X = X[self.feature_names]
-        
-        # Scale features
-        X_scaled = self.scaler.transform(X)
-        
-        # Predict
-        forecast = self.model.predict(X_scaled)
-        
-        logger.info(f"Generated forecast for {self.category}")
-        return forecast
     
     def get_feature_importance(self) -> pd.DataFrame:
         """
@@ -242,5 +288,3 @@ class XGBoostForecaster:
         
         logger.info(f"Evaluation metrics for {self.category}: {metrics}")
         return metrics
-
-

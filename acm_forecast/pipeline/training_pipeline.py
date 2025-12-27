@@ -8,16 +8,9 @@ import pandas as pd
 from pyspark.sql import SparkSession
 import logging
 
-from ..data.data_source import DataSource
-from ..data.data_preparation import DataPreparation
-from ..data.data_quality import DataQualityValidator
-from ..data.feature_engineering import FeatureEngineer
-from ..models.prophet_model import ProphetForecaster
-from ..models.arima_model import ARIMAForecaster
-from ..models.xgboost_model import XGBoostForecaster
+from ..core import PluginFactory
 from ..evaluation.model_evaluator import ModelEvaluator
 from ..evaluation.model_comparison import ModelComparator
-from ..registry.model_registry import ModelRegistry
 from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
@@ -40,14 +33,17 @@ class TrainingPipeline:
         self.config = config
         self.spark = spark
         
-        # Initialize components
-        self.data_source = DataSource(config, spark)
-        self.data_prep = DataPreparation(config, spark)
-        self.data_quality = DataQualityValidator(config, spark)
-        self.feature_engineer = FeatureEngineer(config, spark)
-        self.model_registry = ModelRegistry(config)
+        # Create plugin factory
+        self.factory = PluginFactory()
         
-        # Models
+        # Initialize components using PluginFactory
+        self.data_source = self.factory.create_data_source(config, spark, plugin_name="delta")
+        self.data_prep = self.factory.create_data_preparation(config, spark, plugin_name="default")
+        self.data_quality = self.factory.create_data_quality(config, spark, plugin_name="default")
+        self.feature_engineer = self.factory.create_feature_engineer(config, spark, plugin_name="default")
+        self.model_registry = self.factory.create_model_registry(config, plugin_name="mlflow")
+        
+        # Models (created during training)
         self.prophet_forecaster = None
         self.arima_forecaster = None
         self.xgboost_forecaster = None
@@ -75,7 +71,7 @@ class TrainingPipeline:
         
         # Step 1: Load data (Section 3.1)
         logger.info("Step 1: Loading data from Delta table")
-        df_spark = self.data_source.load_from_delta(
+        df_spark = self.data_source.load_data(
             start_date=start_date,
             end_date=end_date,
             category=category if category != "Total" else None
@@ -91,28 +87,25 @@ class TrainingPipeline:
         # Step 3: Aggregate daily costs (Section 3.3.3)
         logger.info("Step 3: Aggregating daily costs")
         if category != "Total":
-            daily_df_spark = self.data_prep.aggregate_daily_costs(
+            daily_df_spark = self.data_prep.aggregate_data(
                 df_spark, group_by=["meter_category"]
             )
         else:
-            daily_df_spark = self.data_prep.aggregate_daily_costs(df_spark)
+            daily_df_spark = self.data_prep.aggregate_data(df_spark)
         
-        # Convert to Pandas for modeling
-        daily_df = daily_df_spark.toPandas()
+        # Convert to Pandas for modeling (after aggregation)
         date_col = self.config.feature.date_column
-        daily_df = daily_df.sort_values(date_col).reset_index(drop=True)
         
         # Step 4: Data preparation (Section 3.3)
         logger.info("Step 4: Preparing data")
-        daily_df = self.data_prep.handle_missing_values(
-            self.spark.createDataFrame(daily_df) if self.spark else pd.DataFrame()
-        )
-        if self.spark:
-            daily_df = daily_df.toPandas()
+        # Handle missing values using plugin method
+        daily_df_spark = self.data_prep.handle_missing_values(daily_df_spark)
+        daily_df = daily_df_spark.toPandas()
+        daily_df = daily_df.sort_values(date_col).reset_index(drop=True)
         
         # Step 5: Split data (Section 3.3.2)
         logger.info("Step 5: Splitting data")
-        train_df, val_df, test_df = self.data_prep.split_time_series(daily_df)
+        train_df, val_df, test_df = self.data_prep.split(daily_df)
         
         # Step 6: Train models (Section 5.2.1)
         logger.info("Step 6: Training models")
@@ -121,14 +114,14 @@ class TrainingPipeline:
         # Train Prophet
         try:
             logger.info("Training Prophet model")
-            prophet_data = self.data_prep.prepare_for_prophet(train_df)
-            self.prophet_forecaster = ProphetForecaster(self.config, category)
+            prophet_data = self.data_prep.prepare_for_training(train_df, model_type="prophet")
+            self.prophet_forecaster = self.factory.create_model(config=self.config, category=category, plugin_name="prophet")
             self.prophet_forecaster.train(prophet_data)
             
             # Evaluate
             prophet_forecast = self.prophet_forecaster.predict(periods=len(test_df))
             prophet_metrics = self.prophet_forecaster.evaluate(
-                prophet_forecast, self.data_prep.prepare_for_prophet(test_df)
+                prophet_forecast, self.data_prep.prepare_for_training(test_df, model_type="prophet")
             )
             results['prophet'] = {
                 'model': self.prophet_forecaster,
@@ -141,14 +134,20 @@ class TrainingPipeline:
         # Train ARIMA
         try:
             logger.info("Training ARIMA model")
-            arima_data = self.data_prep.prepare_for_arima(train_df)
-            self.arima_forecaster = ARIMAForecaster(self.config, category)
+            arima_data = self.data_prep.prepare_for_training(train_df, model_type="arima")
+            self.arima_forecaster = self.factory.create_model(config=self.config, category=category, plugin_name="arima")
             self.arima_forecaster.train(arima_data)
             
             # Evaluate
-            arima_forecast, _ = self.arima_forecaster.predict(n_periods=len(test_df))
+            arima_forecast_result = self.arima_forecaster.predict(periods=len(test_df), return_conf_int=True)
+            if isinstance(arima_forecast_result, tuple):
+                arima_forecast, _ = arima_forecast_result
+            elif isinstance(arima_forecast_result, pd.DataFrame) and 'forecast' in arima_forecast_result.columns:
+                arima_forecast = arima_forecast_result['forecast']
+            else:
+                arima_forecast = arima_forecast_result
             arima_metrics = self.arima_forecaster.evaluate(
-                arima_forecast, self.data_prep.prepare_for_arima(test_df)
+                arima_forecast, self.data_prep.prepare_for_training(test_df, model_type="arima")
             )
             results['arima'] = {
                 'model': self.arima_forecaster,
@@ -162,13 +161,15 @@ class TrainingPipeline:
         try:
             logger.info("Training XGBoost model")
             xgboost_data = self.feature_engineer.prepare_xgboost_features(train_df)
-            self.xgboost_forecaster = XGBoostForecaster(self.config, category)
+            self.xgboost_forecaster = self.factory.create_model(config=self.config, category=category, plugin_name="xgboost")
             self.xgboost_forecaster.train(xgboost_data)
             
             # Evaluate
-            xgboost_forecast = self.xgboost_forecaster.predict(
-                self.feature_engineer.prepare_xgboost_features(test_df)
-            )
+            xgboost_forecast_result = self.xgboost_forecaster.predict(periods=0, df=self.feature_engineer.prepare_xgboost_features(test_df))
+            if isinstance(xgboost_forecast_result, pd.DataFrame) and 'forecast' in xgboost_forecast_result.columns:
+                xgboost_forecast = xgboost_forecast_result['forecast'].values
+            else:
+                xgboost_forecast = xgboost_forecast_result
             xgboost_metrics = self.xgboost_forecaster.evaluate(
                 xgboost_forecast, test_df[self.config.feature.target_column].values
             )
@@ -190,4 +191,3 @@ class TrainingPipeline:
         
         logger.info(f"Training pipeline completed for {category}")
         return results
-

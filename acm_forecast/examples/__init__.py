@@ -1,2 +1,5 @@
-"""Examples module for Azure Cost Management Forecasting"""
+"""
+Examples module for ACM Forecast Framework
 
+Contains end-to-end examples demonstrating the plugin architecture.
+"""

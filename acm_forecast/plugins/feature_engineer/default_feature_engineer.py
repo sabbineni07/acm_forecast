@@ -1,40 +1,33 @@
 """
-Feature Engineering Module
-Section 3.3.4: Variable Creation
-Section 5.1: Variable Selection and Feature Engineering
+Default Feature Engineering Plugin
+
+PRIMARY IMPLEMENTATION for feature engineering.
+The actual implementation is here - FeatureEngineer class delegates to this.
 """
 
 from typing import List, Optional
 import pandas as pd
 import numpy as np
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import (
-    col, year, month, dayofmonth, dayofweek, dayofyear,
-    weekofyear, quarter, sin, cos, lit, when
-)
+from pyspark.sql import SparkSession
 import logging
 
-from ..config import AppConfig
+from ...core.interfaces import IFeatureEngineer
+from ...core.base_plugin import BasePlugin
+from ...config import AppConfig
 
 logger = logging.getLogger(__name__)
 
 
-class FeatureEngineer:
+class DefaultFeatureEngineer(BasePlugin, IFeatureEngineer):
     """
-    Feature engineering for time series forecasting
+    Default feature engineering plugin - PRIMARY IMPLEMENTATION
     Section 3.3.4: Variable Creation
+    Section 5.1: Variable Selection and Feature Engineering
     """
     
-    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
-        """
-        Initialize feature engineer
-        
-        Args:
-            config: AppConfig instance containing configuration
-            spark: SparkSession for Databricks environment
-        """
-        self.config = config
-        self.spark = spark
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None, **kwargs):
+        """Initialize default feature engineering plugin"""
+        super().__init__(config, spark, **kwargs)
     
     def create_temporal_features(self, df: pd.DataFrame,
                                 date_col: str = None) -> pd.DataFrame:
@@ -100,7 +93,7 @@ class FeatureEngineer:
         if target_col is None:
             target_col = self.config.feature.target_column
         if lags is None:
-            lags = self.config.feature.lag_periods or [1, 2, 3, 7, 14, 30]
+            lags = self.config.feature.lag_features or [1, 2, 3, 7, 14, 30]
         
         df_lags = df.copy()
         date_col = self.config.feature.date_column
@@ -120,6 +113,23 @@ class FeatureEngineer:
         logger.info(f"Created lag features: {lags}")
         return df_lags
     
+    def prepare_features(self, df: pd.DataFrame, model_type: str = "xgboost") -> pd.DataFrame:
+        """
+        Prepare features for model training
+        
+        Args:
+            df: Input DataFrame
+            model_type: Type of model
+            
+        Returns:
+            DataFrame with prepared features
+        """
+        if model_type == "xgboost":
+            return self.prepare_xgboost_features(df)
+        else:
+            return self.create_temporal_features(df)
+    
+    # Additional methods for backward compatibility
     def create_rolling_features(self,
                                df: pd.DataFrame,
                                target_col: str = None,
@@ -140,7 +150,7 @@ class FeatureEngineer:
         if target_col is None:
             target_col = self.config.feature.target_column
         if windows is None:
-            windows = self.config.feature.rolling_windows or [3, 7, 14, 30]
+            windows = self.config.feature.rolling_features.get('window_sizes', [3, 7, 14, 30]) if hasattr(self.config.feature, 'rolling_features') else [3, 7, 14, 30]
         
         df_rolling = df.copy()
         date_col = self.config.feature.date_column
@@ -255,5 +265,3 @@ class FeatureEngineer:
         
         logger.info("Prepared XGBoost features")
         return df_features
-
-

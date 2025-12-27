@@ -1,3 +1,0 @@
-# This directory is for log files
-# Mount this as a volume in Docker to persist logs
-

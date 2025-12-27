@@ -1,10 +1,11 @@
 """
-Data Source Module
-Section 3.1: Data Sourcing
+Delta Data Source Plugin
+
+Primary implementation for loading data from Delta tables.
+This is the source of truth - original DataSource class delegates to this.
 """
 
-from typing import Optional, Dict, Any
-import pandas as pd
+from typing import Dict, Any, Optional
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.functions import col, sum as spark_sum, avg, count, min as spark_min, max as spark_max
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, DateType
@@ -13,7 +14,9 @@ from datetime import date, datetime, timedelta
 import uuid
 import random
 
-from ..config import AppConfig
+from ...core.interfaces import IDataSource
+from ...core.base_plugin import BasePlugin
+from ...config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,25 +54,24 @@ UNITS = {
 }
 
 
-class DataSource:
+class DeltaDataSource(BasePlugin, IDataSource):
     """
-    Data source handler for Azure Cost Management data
+    Delta table data source plugin - PRIMARY IMPLEMENTATION
     Section 3.1.1: Data Source Location
     Section 3.1.2: Data Constraints
     Section 3.1.3: Data Mapping
     Section 3.1.4: Data Reliability
     """
     
-    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
-        """
-        Initialize data source
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None, **kwargs):
+        """Initialize Delta data source plugin
         
         Args:
-            config: AppConfig instance containing configuration
-            spark: SparkSession for Databricks environment
+            config: AppConfig instance
+            spark: Optional SparkSession
+            **kwargs: Plugin-specific configuration
         """
-        self.config = config
-        self.spark = spark
+        super().__init__(config, spark, **kwargs)
         self.delta_table_path = config.data.delta_table_path
         self.database_name = config.data.database_name
         self.table_name = config.data.table_name
@@ -121,21 +123,8 @@ class DataSource:
         
         Returns:
             PySpark DataFrame with synthetic cost data using snake_case column names.
-            The DataFrame has the following schema:
-            - usage_date (DateType)
-            - cost_in_billing_currency (DoubleType)
-            - quantity (DoubleType)
-            - meter_category (StringType)
-            - resource_location (StringType)
-            - subscription_id (StringType)
-            - effective_price (DoubleType)
-            - billing_currency_code (StringType)
-            - plan_name (StringType)
-            - meter_sub_category (StringType)
-            - unit_of_measure (StringType)
         """
-        if self.spark is None:
-            raise ValueError("SparkSession is required for data generation")
+        spark = self.validate_spark()
         
         # Get generation parameters from config
         days = self.config.data.sample_data_days or 365
@@ -217,20 +206,19 @@ class DataSource:
         ])
         
         # Create PySpark DataFrame
-        df = self.spark.createDataFrame(rows, schema=schema)
+        df = spark.createDataFrame(rows, schema=schema)
         
         # Sort by date
         df = df.orderBy("usage_date")
         
-        record_count = df.count()
-        logger.info(f"Generated {record_count:,} records from {dates[0].date()} to {dates[-1].date()}")
+        logger.info(f"Generated records from {dates[0].date()} to {dates[-1].date()}")
         
         return df
-        
-    def load_from_delta(self, 
-                       start_date: Optional[str] = None,
-                       end_date: Optional[str] = None,
-                       category: Optional[str] = None) -> DataFrame:
+    
+    def load_data(self, 
+                  start_date: Optional[str] = None,
+                  end_date: Optional[str] = None,
+                  **filters) -> DataFrame:
         """
         Load data from Delta table or generate sample data (Section 3.1.1)
         
@@ -240,39 +228,26 @@ class DataSource:
         Args:
             start_date: Start date filter (YYYY-MM-DD) - only used when loading from Delta
             end_date: End date filter (YYYY-MM-DD) - only used when loading from Delta
-            category: MeterCategory filter - only used when loading from Delta
+            **filters: Additional filters (category, region, etc.)
             
         Returns:
             Spark DataFrame with Azure cost data
         """
-        if self.spark is None:
-            raise ValueError("SparkSession is required")
+        spark = self.validate_spark()
         
         # Check if sample data generation is enabled
         if self.config.data.generate_sample_data:
             logger.info("Sample data generation enabled - generating synthetic data")
             df = self.generate_sample_data()
-            
-            # Apply filters if provided (for consistency with Delta loading)
-            date_col = self.config.feature.date_column
-            if start_date:
-                df = df.filter(col(date_col) >= start_date)
-            if end_date:
-                df = df.filter(col(date_col) <= end_date)
-            if category:
-                df = df.filter(col("meter_category") == category)
-            
-            logger.info(f"Generated and filtered to {df.count()} records")
-            return df
-        
-        # Load from Delta table (original behavior)
-        logger.info(f"Loading data from {self.delta_table_path}")
-        
-        # Read from Delta table
-        df = self.spark.read.format("delta").table(self.delta_table_path)
-        
+        else:
+            # Load from Delta table (original behavior)
+            logger.info(f"Loading data from {self.delta_table_path}")
+            # Read from Delta table
+            df = spark.read.format("delta").table(self.delta_table_path)
+
         # Apply filters (using snake_case column names)
         date_col = self.config.feature.date_column
+        category = filters.get('category')
         if start_date:
             df = df.filter(col(date_col) >= start_date)
         if end_date:
@@ -280,7 +255,7 @@ class DataSource:
         if category:
             df = df.filter(col("meter_category") == category)
         
-        logger.info(f"Loaded {df.count()} records")
+        # logger.info(f"Loaded {df.count()} records")
         return df
     
     def get_data_profile(self, df: DataFrame) -> Dict[str, Any]:
@@ -400,5 +375,3 @@ class DataSource:
             "billing_currency_code": "billing_currency_code",
             "unit_of_measure": "unit_of_measure"
         }
-
-

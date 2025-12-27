@@ -8,7 +8,7 @@ import pandas as pd
 from pyspark.sql import SparkSession
 import logging
 
-from ..registry.model_registry import ModelRegistry
+from ..core import PluginFactory
 from ..monitoring.performance_monitor import PerformanceMonitor
 from ..config import AppConfig
 
@@ -31,7 +31,10 @@ class ForecastPipeline:
         """
         self.config = config
         self.spark = spark
-        self.model_registry = ModelRegistry(config)
+        
+        # Create plugin factory
+        self.factory = PluginFactory()
+        self.model_registry = self.factory.create_model_registry(config, plugin_name="mlflow")
         self.performance_monitor = PerformanceMonitor(config)
     
     def generate_forecasts(self,
@@ -59,7 +62,7 @@ class ForecastPipeline:
             # Determine best model for category
             model_name = self._get_best_model_for_category(category)
         
-        model = self.model_registry.load_model(model_name, "Production")
+        model = self.model_registry.load_model(model_name, version=None, stage="Production")
         
         # Generate forecasts for each horizon
         forecasts = {}
@@ -101,5 +104,3 @@ class ForecastPipeline:
         # This would be implemented based on model type
         # Placeholder implementation
         return pd.DataFrame()
-
-

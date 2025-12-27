@@ -1,41 +1,45 @@
 """
-Prophet Model Implementation
-Section 4.2.1: Model Methodology - Prophet
-Section 5.2.1: Model Estimation - Prophet
-Section 5.2.3: Final Model Specification - Prophet
+Prophet Model Plugin
+
+PRIMARY IMPLEMENTATION for Prophet time series forecasting.
+The actual implementation is here - ProphetForecaster class delegates to this.
 """
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any
 import pandas as pd
 import numpy as np
 from prophet import Prophet
 from prophet.diagnostics import cross_validation, performance_metrics
 import logging
 
-from ..config import AppConfig
+from ...core.interfaces import IModel
+from ...core.base_plugin import BasePlugin
+from ...config import AppConfig
 
 logger = logging.getLogger(__name__)
 
 
-class ProphetForecaster:
+class ProphetModelPlugin(BasePlugin, IModel):
     """
-    Prophet model for time series forecasting
+    Prophet model plugin - PRIMARY IMPLEMENTATION
     Section 4.2.1: Prophet Model Methodology
+    Section 5.2.1: Model Estimation - Prophet
+    Section 5.2.3: Final Model Specification - Prophet
     """
     
-    def __init__(self, config: AppConfig, category: str = "Total"):
-        """
-        Initialize Prophet forecaster
+    def __init__(self, config: AppConfig, category: str = "Total", **kwargs):
+        """Initialize Prophet model plugin
         
         Args:
-            config: AppConfig instance containing configuration
+            config: AppConfig instance
             category: Cost category name
+            **kwargs: Plugin-specific configuration
         """
-        self.config = config
+        super().__init__(config, None, **kwargs)  # Prophet doesn't need Spark
         self.category = category
         self.model = None
         self.is_trained = False
-        
+    
     def create_model(self) -> Prophet:
         """
         Create Prophet model with configuration (Section 5.2.3)
@@ -57,7 +61,7 @@ class ProphetForecaster:
         logger.info(f"Created Prophet model for {self.category}")
         return model
     
-    def train(self, df: pd.DataFrame) -> Prophet:
+    def train(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Train Prophet model (Section 5.2.1)
         
@@ -65,7 +69,7 @@ class ProphetForecaster:
             df: DataFrame with 'ds' (date) and 'y' (value) columns
             
         Returns:
-            Trained Prophet model
+            Dictionary with training results (includes model)
         """
         if self.model is None:
             self.model = self.create_model()
@@ -75,23 +79,27 @@ class ProphetForecaster:
         self.is_trained = True
         
         logger.info(f"Prophet model trained successfully for {self.category}")
-        return self.model
+        return {
+            "model": self.model,
+            "is_trained": True,
+            "category": self.category
+        }
     
-    def predict(self, 
-                periods: int = 30,
-                freq: str = 'D') -> pd.DataFrame:
+    def predict(self, periods: int = 30, **kwargs) -> pd.DataFrame:
         """
-        Generate forecasts (Section 5.2.1)
+        Generate predictions (Section 5.2.1)
         
         Args:
             periods: Number of periods to forecast
-            freq: Frequency ('D' for daily, 'W' for weekly, 'M' for monthly)
+            **kwargs: Additional parameters (freq, etc.)
             
         Returns:
             DataFrame with forecasts
         """
         if not self.is_trained:
             raise ValueError("Model must be trained before prediction")
+        
+        freq = kwargs.get('freq', 'D')
         
         # Create future dataframe
         future = self.model.make_future_dataframe(periods=periods, freq=freq)
@@ -102,8 +110,35 @@ class ProphetForecaster:
         logger.info(f"Generated {periods} period forecast for {self.category}")
         return forecast
     
-    def cross_validate(self, 
-                      df: pd.DataFrame) -> Dict[str, float]:
+    def save(self, path: str) -> None:
+        """
+        Save model to path
+        
+        Args:
+            path: Path to save model
+        """
+        if self.model is not None:
+            # Prophet models can be saved using pickle or joblib
+            import pickle
+            with open(path, 'wb') as f:
+                pickle.dump(self.model, f)
+            logger.info(f"Saved Prophet model to {path}")
+    
+    def load(self, path: str) -> None:
+        """
+        Load model from path
+        
+        Args:
+            path: Path to load model from
+        """
+        import pickle
+        with open(path, 'rb') as f:
+            self.model = pickle.load(f)
+        self.is_trained = True
+        logger.info(f"Loaded Prophet model from {path}")
+    
+    # Additional methods for backward compatibility (not in interface but used by original class)
+    def cross_validate(self, df: pd.DataFrame) -> Dict[str, float]:
         """
         Cross-validate model (Section 5.2.4)
         
@@ -168,9 +203,7 @@ class ProphetForecaster:
         
         return components
     
-    def evaluate(self, 
-                 forecast: pd.DataFrame,
-                 actual: pd.DataFrame) -> Dict[str, float]:
+    def evaluate(self, forecast: pd.DataFrame, actual: pd.DataFrame) -> Dict[str, float]:
         """
         Evaluate model on test data
         
@@ -207,5 +240,3 @@ class ProphetForecaster:
         
         logger.info(f"Evaluation metrics for {self.category}: {metrics}")
         return metrics
-
-

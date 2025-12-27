@@ -1,6 +1,8 @@
 """
-Model Registry Module
-Section 7.2: Model Registry Configuration in Databricks
+MLflow Model Registry Plugin
+
+PRIMARY IMPLEMENTATION for MLflow model registry.
+The actual implementation is here - ModelRegistry class delegates to this.
 """
 
 from typing import Dict, Optional, Any
@@ -8,25 +10,28 @@ import mlflow
 from mlflow.tracking import MlflowClient
 import logging
 
-from ..config import AppConfig
+from ...core.interfaces import IModelRegistry
+from ...core.base_plugin import BasePlugin
+from ...config import AppConfig
 
 logger = logging.getLogger(__name__)
 
 
-class ModelRegistry:
+class MLflowModelRegistry(BasePlugin, IModelRegistry):
     """
-    MLflow Model Registry integration
+    MLflow Model Registry plugin - PRIMARY IMPLEMENTATION
     Section 7.2: Model Registry Configuration in Databricks
     """
     
-    def __init__(self, config: AppConfig, tracking_uri: Optional[str] = None):
-        """
-        Initialize model registry
+    def __init__(self, config: AppConfig, tracking_uri: Optional[str] = None, **kwargs):
+        """Initialize MLflow model registry plugin
         
         Args:
-            config: AppConfig instance containing configuration
+            config: AppConfig instance
             tracking_uri: MLflow tracking URI (optional override)
+            **kwargs: Plugin-specific configuration
         """
+        super().__init__(config, None, **kwargs)  # ModelRegistry doesn't need Spark
         self.config = config
         if tracking_uri:
             mlflow.set_tracking_uri(tracking_uri)
@@ -42,6 +47,47 @@ class ModelRegistry:
         except Exception as e:
             logger.warning(f"Could not set experiment: {e}", exc_info=True)
     
+    def save_model(self, model: Any, name: str, version: Optional[str] = None) -> str:
+        """
+        Save model to registry
+        
+        Args:
+            model: Model object to save
+            name: Model name
+            version: Optional version string (ignored, MLflow handles versioning)
+            
+        Returns:
+            Model version string
+        """
+        # MLflow auto-versions, so version parameter is ignored
+        # This method signature matches the interface but MLflow handles versioning differently
+        # Use register_model for full registration instead
+        raise NotImplementedError("Use register_model() for MLflow registration")
+    
+    def load_model(self, name: str, version: Optional[str] = None, stage: Optional[str] = None) -> Any:
+        """
+        Load model from registry
+        
+        Args:
+            name: Model name
+            version: Optional version string
+            stage: Optional stage string (defaults to 'Production' if version not provided)
+            
+        Returns:
+            Loaded model object
+        """
+        if version:
+            model_uri = f"models:/{name}/{version}"
+        else:
+            # Load from specified stage (default Production)
+            stage = stage or "Production"
+            model_uri = f"models:/{name}/{stage}"
+        
+        model = mlflow.pyfunc.load_model(model_uri)
+        logger.info(f"Loaded {name} from registry")
+        return model
+    
+    # Additional methods for backward compatibility (not in interface but used by original class)
     def register_model(self,
                       model: Any,
                       model_name: str,
@@ -70,12 +116,16 @@ class ModelRegistry:
             elif model_type == 'arima':
                 # ARIMA models need to be saved differently
                 import joblib
-                mlflow.log_artifact(joblib.dump(model, "model.pkl")[0], "model")
+                temp_path = "model.pkl"
+                joblib.dump(model, temp_path)
+                mlflow.log_artifact(temp_path, "model")
             elif model_type == 'xgboost':
                 mlflow.xgboost.log_model(model, "model")
             else:
                 import joblib
-                mlflow.log_artifact(joblib.dump(model, "model.pkl")[0], "model")
+                temp_path = "model.pkl"
+                joblib.dump(model, temp_path)
+                mlflow.log_artifact(temp_path, "model")
             
             # Log metrics
             for metric_name, metric_value in metrics.items():
@@ -117,26 +167,6 @@ class ModelRegistry:
         
         logger.info(f"Promoted {model_name} version {version} to {stage}")
     
-    def load_model(self,
-                   model_name: str,
-                   stage: str = "Production") -> Any:
-        """
-        Load model from registry (Section 7.2)
-        
-        Args:
-            model_name: Name of the model
-            stage: Model stage ('Staging' or 'Production')
-            
-        Returns:
-            Loaded model object
-        """
-        model = mlflow.pyfunc.load_model(
-            f"models:/{model_name}/{stage}"
-        )
-        
-        logger.info(f"Loaded {model_name} from {stage} stage")
-        return model
-    
     def get_model_versions(self, model_name: str) -> list:
         """
         Get all versions of a model
@@ -170,5 +200,3 @@ class ModelRegistry:
             return latest.version
         
         return None
-
-

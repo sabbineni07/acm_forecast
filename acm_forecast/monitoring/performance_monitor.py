@@ -3,7 +3,7 @@ Performance Monitoring Module
 Section 8.1: Performance Monitoring
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta

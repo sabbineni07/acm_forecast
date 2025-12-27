@@ -7,7 +7,7 @@ from typing import Dict, Optional, Any
 import logging
 from datetime import datetime
 
-from .model_registry import ModelRegistry
+from ..core import PluginFactory
 from ..config import AppConfig
 
 logger = logging.getLogger(__name__)
@@ -19,16 +19,22 @@ class ModelVersioning:
     Section 7.3: Access, Versioning and Controls Description
     """
     
-    def __init__(self, config: AppConfig, registry: Optional[ModelRegistry] = None):
+    def __init__(self, config: AppConfig, registry: Optional[Any] = None):
         """
         Initialize model versioning
         
         Args:
             config: AppConfig instance containing configuration
-            registry: ModelRegistry instance
+            registry: Model registry plugin instance (IModelRegistry). If None, will be created using PluginFactory.
         """
         self.config = config
-        self.registry = registry or ModelRegistry(config)
+        
+        # Create registry using PluginFactory if not provided
+        if registry is None:
+            factory = PluginFactory()
+            registry = factory.create_model_registry(config, plugin_name="mlflow")
+        
+        self.registry = registry
     
     def create_version_tag(self,
                           category: str,
@@ -73,7 +79,7 @@ class ModelVersioning:
         Returns:
             Comparison results
         """
-        # Get version information
+        # Get version information using registry plugin
         versions = self.registry.get_model_versions(model_name)
         v1_info = next((v for v in versions if v.version == version1), None)
         v2_info = next((v for v in versions if v.version == version2), None)
@@ -107,20 +113,21 @@ class ModelVersioning:
             model_name: Name of the model
             target_version: Version to rollback to
         """
-        # Get current production version
-        current_version = self.registry.get_latest_version(model_name, "Production")
+        # Get current production version using registry plugin
+        current_version = self.registry.get_latest_version(model_name, stage="Production")
         
         if current_version:
             # Transition current to Archived
-            self.registry.client.transition_model_version_stage(
-                name=model_name,
-                version=current_version,
-                stage="Archived"
-            )
+            # Note: This assumes the registry plugin has a client attribute
+            # If using MLflow registry, it will have mlflow client
+            if hasattr(self.registry, 'client'):
+                self.registry.client.transition_model_version_stage(
+                    name=model_name,
+                    version=current_version,
+                    stage="Archived"
+                )
         
-        # Promote target version to Production
-        self.registry.promote_model(model_name, target_version, "Production")
+        # Promote target version to Production using registry plugin
+        self.registry.promote_model(model_name, target_version, stage="Production")
         
         logger.info(f"Rolled back {model_name} to version {target_version}")
-
-

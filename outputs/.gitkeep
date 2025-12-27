@@ -1,3 +1,0 @@
-# This directory is for output files (models, forecasts, etc.)
-# Mount this as a volume in Docker to persist outputs
-

@@ -290,7 +290,7 @@ df = self.data_source.load_from_delta(...)
 quality = self.data_quality.comprehensive_validation(df)
 
 # Step 3: Aggregate (data_preparation)
-daily_df = self.data_prep.aggregate_daily_costs(df)
+daily_df = self.data_prep.aggregate_data(df)
 
 # Step 4: Prepare (data_preparation)
 daily_df = self.data_prep.handle_missing_values(daily_df)

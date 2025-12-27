@@ -273,10 +273,10 @@ def test_delta_table_path(tmp_path_factory, spark_session):
         # Table exists, return path
         return delta_table_path
     
-    # Generate sample data using DataSource directly
+    # Generate sample data using PluginFactory
     print("\nGenerating test Delta table...")
     try:
-        from acm_forecast.data.data_source import DataSource
+        from acm_forecast.core import PluginFactory
         from acm_forecast.config import AppConfig
         
         # Load test config
@@ -290,13 +290,12 @@ def test_delta_table_path(tmp_path_factory, spark_session):
         test_config.data.sample_data_subscriptions = 3
         test_config.data.sample_data_start_date = "2024-01-01"
         
-        # Create DataSource and generate sample data
-        data_source = DataSource(test_config, spark_session)
-        print(f"  Generating sample data using DataSource...")
+        # Create DataSource plugin and generate sample data
+        factory = PluginFactory()
+        data_source = factory.create_data_source(test_config, spark_session, plugin_name="delta")
+        print(f"  Generating sample data using DeltaDataSource plugin...")
         spark_df = data_source.generate_sample_data()
-        
-        record_count = spark_df.count()
-        print(f"  Generated {record_count:,} records")
+        print(f"  Generated sample data")
         
         # Write as Delta table
         print(f"  Writing Delta table to: {delta_table_path}")

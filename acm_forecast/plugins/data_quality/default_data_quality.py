@@ -1,36 +1,32 @@
 """
-Data Quality Validation Module
-Section 3.1.4: Data Reliability
+Default Data Quality Plugin
+
+PRIMARY IMPLEMENTATION for data quality validation.
+The actual implementation is here - DataQualityValidator class delegates to this.
 """
 
 from typing import Dict, Any, Optional
-import pandas as pd
-from pyspark.sql import SparkSession, DataFrame, functions as sqlf
+from pyspark.sql import DataFrame, SparkSession, functions as sqlf
 from pyspark.sql.functions import col, count, sum as spark_sum, isnull, isnan
 import logging
 from datetime import datetime, date
 
-from ..config import AppConfig
+from ...core.interfaces import IDataQuality
+from ...core.base_plugin import BasePlugin
+from ...config import AppConfig
 
 logger = logging.getLogger(__name__)
 
 
-class DataQualityValidator:
+class DefaultDataQuality(BasePlugin, IDataQuality):
     """
-    Data quality validation and monitoring
+    Default data quality validator plugin - PRIMARY IMPLEMENTATION
     Section 3.1.4: Data Reliability
     """
     
-    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None):
-        """
-        Initialize data quality validator
-        
-        Args:
-            config: AppConfig instance containing configuration
-            spark: SparkSession for Databricks environment
-        """
-        self.config = config
-        self.spark = spark
+    def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None, **kwargs):
+        """Initialize default data quality plugin"""
+        super().__init__(config, spark, **kwargs)
     
     def validate_completeness(self, df: DataFrame) -> Dict[str, Any]:
         """
@@ -141,9 +137,6 @@ class DataQualityValidator:
         distinct_records = df.distinct().count()
         duplicates = total_records - distinct_records
         
-        # Check for data type consistency
-        # (This would require schema validation)
-        
         results = {
             "total_records": total_records,
             "distinct_records": distinct_records,
@@ -152,6 +145,32 @@ class DataQualityValidator:
         }
         
         return results
+    
+    def comprehensive_validation(self, df: DataFrame) -> Dict[str, Any]:
+        """
+        Perform comprehensive data quality validation
+        
+        Args:
+            df: Input DataFrame
+            
+        Returns:
+            Complete validation results
+        """
+        logger.info("Performing comprehensive data quality validation")
+        
+        validation_results = {
+            "completeness": self.validate_completeness(df),
+            "accuracy": self.validate_accuracy(df),
+            "consistency": self.validate_consistency(df),
+            "timeliness": self.validate_timeliness(df)
+        }
+        
+        # Overall quality score
+        quality_score = self._calculate_quality_score(validation_results)
+        validation_results["quality_score"] = quality_score
+        
+        logger.info(f"Data quality score: {quality_score:.2f}%")
+        return validation_results
     
     def validate_timeliness(self, df: DataFrame) -> Dict[str, Any]:
         """
@@ -191,32 +210,6 @@ class DataQualityValidator:
         
         return results
     
-    def comprehensive_validation(self, df: DataFrame) -> Dict[str, Any]:
-        """
-        Perform comprehensive data quality validation
-        
-        Args:
-            df: Input DataFrame
-            
-        Returns:
-            Complete validation results
-        """
-        logger.info("Performing comprehensive data quality validation")
-        
-        validation_results = {
-            "completeness": self.validate_completeness(df),
-            "accuracy": self.validate_accuracy(df),
-            "consistency": self.validate_consistency(df),
-            "timeliness": self.validate_timeliness(df)
-        }
-        
-        # Overall quality score
-        quality_score = self._calculate_quality_score(validation_results)
-        validation_results["quality_score"] = quality_score
-        
-        logger.info(f"Data quality score: {quality_score:.2f}%")
-        return validation_results
-    
     def _calculate_quality_score(self, validation_results: Dict[str, Any]) -> float:
         """
         Calculate overall data quality score
@@ -242,5 +235,3 @@ class DataQualityValidator:
         )
         
         return quality_score
-
-

@@ -4,7 +4,7 @@ Integration tests for DataSource module with Delta tables
 import pytest
 from pyspark.sql import SparkSession
 from acm_forecast.config import AppConfig
-from acm_forecast.data.data_source import DataSource
+from acm_forecast.core import PluginFactory
 
 
 @pytest.mark.integration
@@ -14,14 +14,14 @@ class TestDataSourceDelta:
 
     def test_load_from_delta_basic(self, spark_session, test_app_config):
         """Test basic data loading from Delta table"""
-        data_source = DataSource(test_app_config, spark_session)
+        factory = PluginFactory()
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
 
         # Load all data
-        df = data_source.load_from_delta()
+        df = data_source.load_data()
 
         assert df is not None
-        count = df.count()
-        assert count > 0, "Should load some records"
+        assert not df.isEmpty(), "Should load some records"
 
         # Verify required columns exist
         columns = df.columns
@@ -33,17 +33,17 @@ class TestDataSourceDelta:
 
     def test_load_from_delta_with_date_filter(self, spark_session, test_app_config):
         """Test loading data with date filters"""
-        data_source = DataSource(test_app_config, spark_session)
+        factory = PluginFactory()
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
 
         # Load data for specific date range
-        df = data_source.load_from_delta(
+        df = data_source.load_data(
             start_date="2024-01-01",
             end_date="2024-01-31"
         )
 
         assert df is not None
-        count = df.count()
-        assert count > 0, "Should load records in date range"
+        assert not df.isEmpty(), "Should load records in date range"
 
         # Verify dates are in range
         from datetime import date
@@ -59,10 +59,11 @@ class TestDataSourceDelta:
 
     def test_load_from_delta_with_category_filter(self, spark_session, test_app_config):
         """Test loading data with category filter"""
-        data_source = DataSource(test_app_config, spark_session)
+        factory = PluginFactory()
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
 
         # First, find what categories exist in the test data
-        all_df = data_source.load_from_delta()
+        all_df = data_source.load_data()
         available_categories = [row["meter_category"] for row in all_df.select("meter_category").distinct().collect()]
         assert len(available_categories) > 0, "Test data should have at least one category"
 
@@ -70,11 +71,10 @@ class TestDataSourceDelta:
         test_category = available_categories[0]
 
         # Load data for specific category
-        df = data_source.load_from_delta(category=test_category)
+        df = data_source.load_data(category=test_category)
 
         assert df is not None
-        count = df.count()
-        assert count > 0, f"Should load records for {test_category} category"
+        assert not df.isEmpty(), f"Should load records for {test_category} category"
 
         # Verify all records are the filtered category
         categories = df.select("meter_category").distinct().collect()
@@ -84,10 +84,11 @@ class TestDataSourceDelta:
 
     def test_get_data_profile(self, spark_session, test_app_config):
         """Test getting data profile"""
-        data_source = DataSource(test_app_config, spark_session)
+        factory = PluginFactory()
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
 
         # Load sample data
-        df = data_source.load_from_delta()
+        df = data_source.load_data()
 
         # Get profile
         profile = data_source.get_data_profile(df)
@@ -103,10 +104,11 @@ class TestDataSourceDelta:
 
     def test_validate_data_availability(self, spark_session, test_app_config):
         """Test data availability validation"""
-        data_source = DataSource(test_app_config, spark_session)
+        factory = PluginFactory()
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
 
         # Load sample data
-        df = data_source.load_from_delta()
+        df = data_source.load_data()
 
         # Validate availability
         validation = data_source.validate_data_availability(df)
@@ -120,7 +122,8 @@ class TestDataSourceDelta:
 
     def test_map_attributes(self, test_app_config):
         """Test attribute mapping"""
-        data_source = DataSource(test_app_config, spark=None)
+        factory = PluginFactory()
+        data_source = factory.create_data_source(test_app_config, spark=None, plugin_name="delta")
 
         mapping = data_source.map_attributes()
 
@@ -132,4 +135,3 @@ class TestDataSourceDelta:
         assert "resource_location" in mapping
         assert "plan_name" in mapping  # Replaced ServiceTier
         assert "effective_price" in mapping  # Replaced ResourceRate
-

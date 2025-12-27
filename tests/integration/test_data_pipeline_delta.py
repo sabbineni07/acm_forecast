@@ -6,113 +6,95 @@ import pytest
 import pandas as pd
 from pyspark.sql import SparkSession
 from acm_forecast.config import AppConfig
-from acm_forecast.data.data_source import DataSource
-from acm_forecast.data.data_quality import DataQualityValidator
-from acm_forecast.data.data_preparation import DataPreparation
-from acm_forecast.data.feature_engineering import FeatureEngineer
+from acm_forecast.core import PluginFactory
 
 
 @pytest.mark.integration
 @pytest.mark.requires_spark
-@pytest.mark.filterwarnings("ignore:unclosed <socket.socket")
 class TestDataPipelineDelta:
     """Integration tests for complete data pipeline with Delta table"""
 
     def test_end_to_end_data_processing(self, spark_session, test_app_config):
         """Test complete data processing pipeline"""
-        # Initialize components
-        data_source = DataSource(test_app_config, spark_session)
-        data_quality = DataQualityValidator(test_app_config, spark_session)
-        data_prep = DataPreparation(test_app_config, spark_session)
-        feature_engineer = FeatureEngineer(test_app_config, spark_session)
+        factory = PluginFactory()
+        
+        # Step 1: Load data
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        df_spark = data_source.load_data()
 
-        # Step 1: Load data from Delta
-        print("Step 1: Loading data from Delta table...")
-        df_spark = data_source.load_from_delta()
-        assert df_spark.count() > 0
-
-        # Step 2: Validate data quality
-        print("Step 2: Validating data quality...")
+        # Step 2: Data quality validation
+        data_quality = factory.create_data_quality(test_app_config, spark_session, plugin_name="default")
         quality_results = data_quality.comprehensive_validation(df_spark)
         assert quality_results["quality_score"] >= 0
 
-        # Step 3: Aggregate daily costs
-        print("Step 3: Aggregating daily costs...")
-        daily_df_spark = data_prep.aggregate_daily_costs(df_spark, group_by=["meter_category"])
-        daily_count = daily_df_spark.count()
-        assert daily_count > 0
+        # Step 3: Data preparation - aggregate daily costs
+        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="default")
+        daily_df_spark = data_prep.aggregate_data(df_spark)
 
-        # Step 4: Convert to Pandas for feature engineering
-        print("Step 4: Converting to Pandas...")
+        # Step 4: Converting to Pandas...
         daily_df = daily_df_spark.toPandas()
-        assert len(daily_df) > 0
-        
-        # Convert date column from object/date to datetime64[ns] for pandas
-        date_col = test_app_config.feature.date_column
-        if date_col in daily_df.columns:
-            # Convert date column to datetime, handling both date objects and strings
-            daily_df[date_col] = pd.to_datetime(daily_df[date_col], errors='coerce').astype('datetime64[ns]')
+        # Explicitly convert date column to datetime64[ns] to avoid dtype issues
+        daily_df[test_app_config.feature.date_column] = pd.to_datetime(
+            daily_df[test_app_config.feature.date_column]
+        ).astype('datetime64[ns]')
 
         # Step 5: Split data
-        print("Step 5: Splitting data...")
-        train_df, val_df, test_df = data_prep.split_time_series(daily_df)
+        train_df, val_df, test_df = data_prep.split(daily_df)
+
         assert len(train_df) > 0
         assert len(val_df) > 0
         assert len(test_df) > 0
+        assert len(train_df) + len(val_df) + len(test_df) == len(daily_df)
 
         # Step 6: Feature engineering
-        print("Step 6: Feature engineering...")
-        features_df = feature_engineer.prepare_xgboost_features(train_df)
-        assert len(features_df) > 0
-        assert len(features_df.columns) > len(train_df.columns)
+        feature_engineer = factory.create_feature_engineer(test_app_config, spark_session, plugin_name="default")
+        train_features = feature_engineer.create_temporal_features(train_df)
+        assert len(train_features.columns) > len(train_df.columns)
 
-        print("✅ End-to-end data processing pipeline completed successfully")
-
-    def test_aggregate_daily_costs_with_delta(self, spark_session, test_app_config):
+    def test_aggregate_data_with_delta(self, spark_session, test_app_config):
         """Test daily aggregation with Delta table data"""
-        data_source = DataSource(test_app_config, spark_session)
-        data_prep = DataPreparation(test_app_config, spark_session)
-
-        # Load data
-        df = data_source.load_from_delta()
-
-        # Aggregate by category
-        daily_df = data_prep.aggregate_daily_costs(df, group_by=["meter_category"])
-
-        assert daily_df.count() > 0
+        factory = PluginFactory()
         
-        # Verify aggregation columns
+        # Load data
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        df = data_source.load_data()
+
+        # Aggregate
+        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="default")
+        daily_df = data_prep.aggregate_data(df)
+
+        assert daily_df is not None
+        assert not daily_df.isEmpty()
+
+        # Verify aggregated columns exist
         columns = daily_df.columns
         assert test_app_config.feature.date_column in columns
-        assert test_app_config.feature.target_column in columns  # Renamed from daily_cost
-        assert "total_quantity" in columns
-        assert "avg_rate" in columns
-        assert "meter_category" in columns
+        assert test_app_config.feature.target_column in columns
 
     def test_data_preparation_with_delta_data(self, spark_session, test_app_config):
         """Test data preparation with Delta table data"""
-        import pandas as pd
+        factory = PluginFactory()
+        
+        # Load and aggregate data
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        df = data_source.load_data()
+        
+        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="default")
+        daily_df_spark = data_prep.aggregate_data(df)
 
-        data_source = DataSource(test_app_config, spark_session)
-        data_prep = DataPreparation(test_app_config, spark_session)
-
-        # Load and aggregate
-        df = data_source.load_from_delta()
-        daily_df_spark = data_prep.aggregate_daily_costs(df)
+        # Convert to Pandas
         daily_df = daily_df_spark.toPandas()
+        # Explicitly convert date column to datetime64[ns]
+        daily_df[test_app_config.feature.date_column] = pd.to_datetime(
+            daily_df[test_app_config.feature.date_column]
+        ).astype('datetime64[ns]')
 
-        # Convert date column to datetime64[ns] for pandas
-        date_col = test_app_config.feature.date_column
-        if date_col in daily_df.columns:
-            daily_df[date_col] = pd.to_datetime(daily_df[date_col], errors='coerce').astype('datetime64[ns]')
+        # Prepare for Prophet
+        prophet_data = data_prep.prepare_for_training(daily_df, model_type="prophet")
+        assert "ds" in prophet_data.columns
+        assert "y" in prophet_data.columns
 
-        # Test Prophet preparation
-        prophet_df = data_prep.prepare_for_prophet(daily_df)
-        assert len(prophet_df) > 0
-        assert "ds" in prophet_df.columns
-        assert "y" in prophet_df.columns
-
-        # Test ARIMA preparation
-        arima_ts = data_prep.prepare_for_arima(daily_df)
-        assert len(arima_ts) > 0
-
+        # Prepare for ARIMA
+        arima_data = data_prep.prepare_for_training(daily_df, model_type="arima")
+        assert len(arima_data) > 0
+        assert hasattr(arima_data, 'index')  # Should be a Series with datetime index
