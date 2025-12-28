@@ -365,7 +365,7 @@ def visualize_forecasts(train_df: DataFrame, forecast_df: pd.DataFrame, config: 
 
 
 def main():
-    """Main execution function"""
+    """Main execution function - Uses AppRunner for pipeline execution"""
     parser = argparse.ArgumentParser(description="Run end-to-end forecasting pipeline")
     parser.add_argument(
         "--config",
@@ -385,59 +385,37 @@ def main():
         default="forecast_visualization.png",
         help="Output path for forecast visualization"
     )
+    parser.add_argument(
+        "--steps",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Specific steps to run (e.g., --steps load_data prepare_data train_model forecast)"
+    )
     
     args = parser.parse_args()
     
     try:
-        # Load configuration
-        logger.info("Loading configuration...")
+        # Resolve config path
         config_path = Path(args.config)
         if not config_path.is_absolute():
             # Try relative to examples directory
             examples_dir = Path(__file__).parent
             config_path = examples_dir / args.config
         
-        config = AppConfig.from_yaml(str(config_path))
-        logger.info(f"✅ Configuration loaded from: {config_path}")
+        # Use AppRunner to execute pipeline
+        from acm_forecast.core import AppRunner
         
-        # Initialize Spark
-        spark = setup_spark()
-        logger.info("✅ Spark session initialized")
-        
-        # Initialize plugin factory
-        factory = PluginFactory()
-        logger.info("✅ Plugin factory initialized")
-        
-        # Step 1: Load or generate data
-        raw_df = load_or_generate_data(factory, config, spark)
-        
-        # Step 2: Prepare data
-        daily_df, train_df, test_df = prepare_data(factory, config, spark, raw_df)
-        
-        # Step 3: Run data quality
-        validation_results = run_data_quality(factory, config, spark, daily_df)
-        
-        # Step 4: Train model
-        model_plugin = train_model(factory, config, spark, train_df, category=args.category)
-        
-        # Step 5: Generate forecasts
-        forecast_df = generate_forecasts(config, model_plugin)
-        
-        # Step 6: Visualize forecasts
-        visualize_forecasts(train_df, forecast_df, config, output_path=args.output)
-        
-        logger.info("=" * 70)
-        logger.info("✅ END-TO-END PIPELINE COMPLETED SUCCESSFULLY")
-        logger.info("=" * 70)
+        runner = AppRunner(config_path=str(config_path))
+        runner.run(
+            steps=args.steps,
+            category=args.category,
+            output_path=args.output
+        )
         
     except Exception as e:
         logger.error(f"❌ Pipeline failed: {e}", exc_info=True)
         sys.exit(1)
-    finally:
-        # Clean up Spark
-        if 'spark' in locals():
-            spark.stop()
-            logger.info("Spark session stopped")
 
 
 if __name__ == "__main__":

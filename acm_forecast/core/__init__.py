@@ -19,6 +19,7 @@ from .interfaces import (
 
 from .plugin_registry import PluginRegistry, PluginFactory
 from .base_plugin import BasePlugin
+from .app_runner import AppRunner
 
 __all__ = [
     "IDataSource",
@@ -31,5 +32,6 @@ __all__ = [
     "PluginRegistry",
     "PluginFactory",
     "BasePlugin",
+    "AppRunner",
 ]
 
