@@ -1,5 +1,6 @@
 .PHONY: help test test-unit test-integration test-e2e test-cov test-cov-html clean-test
 .PHONY: format lint check install-test
+.PHONY: build build-deploy clean-build
 .PHONY: docker-build docker-build-no-cache docker-build-app docker-build-dev docker-build-jupyter
 .PHONY: docker-up docker-down docker-restart docker-ps docker-logs docker-logs-follow
 .PHONY: docker-exec-app docker-exec-dev docker-shell-app docker-shell-dev
@@ -27,6 +28,11 @@ help:
 	@echo "  make format                - Format code with black"
 	@echo "  make lint                  - Lint code with flake8"
 	@echo "  make check                 - Run linting and tests"
+	@echo ""
+	@echo "Package Building:"
+	@echo "  make build                 - Build wheel package"
+	@echo "  make build-deploy          - Build wheel package and copy to deploy directory"
+	@echo "  make clean-build           - Clean build artifacts (dist/, build/, *.egg-info)"
 	@echo ""
 	@echo "Docker - Build:"
 	@echo "  make docker-build          - Build all Docker images (dev, default)"
@@ -158,6 +164,37 @@ format:
 # Lint code
 lint:
 	flake8 acm_forecast tests
+
+# ============================================================================
+# Package Building
+# ============================================================================
+
+# Build wheel package
+build:
+	@echo "Building wheel package..."
+	@python3 -m pip install --upgrade build wheel
+	@python3 -m build --wheel
+	@echo "✅ Wheel package built successfully"
+	@echo "📦 Package location: dist/"
+	@ls -lh dist/*.whl 2>/dev/null || echo "No wheel files found in dist/"
+
+# Build wheel package and copy to deploy directory
+build-deploy: build
+	@echo "Copying wheel package to deploy directory..."
+	@mkdir -p acm_forecast/deploy
+	@cp dist/*.whl acm_forecast/deploy/ 2>/dev/null || true
+	@echo "✅ Wheel package copied to acm_forecast/deploy/"
+	@ls -lh acm_forecast/deploy/*.whl 2>/dev/null || echo "No wheel files found in deploy/"
+
+# Clean build artifacts
+clean-build:
+	@echo "Cleaning build artifacts..."
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info
+	rm -rf acm_forecast.egg-info
+	rm -rf acm_forecast/deploy/*.whl 2>/dev/null || true
+	@echo "✅ Build artifacts cleaned"
 
 # ============================================================================
 # Docker - Build
