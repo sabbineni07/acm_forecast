@@ -65,8 +65,20 @@ This directory contains YAML-based configuration for the Azure Cost Management F
 - Monitoring frequency
 
 ### Forecast
-- Forecast horizons
-- Granularity settings
+- Forecast horizons (supports multiple horizons)
+- Granularity settings (daily, weekly, monthly)
+
+### Plugins Configuration
+- Plugin selection for each component type
+- Plugin-specific configuration parameters
+- Available plugins:
+  - **data_source**: `acm` - ACM Delta data source
+  - **data_quality**: `default` - Comprehensive validation
+  - **data_preparation**: `acm` - ACM-specific preparation
+  - **feature_engineer**: `default` - Temporal/lag/rolling features
+  - **model**: `prophet`, `arima`, `xgboost` - Forecasting models
+  - **forecaster**: `default` - Forecast generation
+  - **model_registry**: `mlflow` - MLflow registry
 
 ## Usage Examples
 
@@ -93,15 +105,50 @@ print(config.training.train_split)
 
 ```python
 from acm_forecast.config import AppConfig
+from acm_forecast.core import AppRunner
 from acm_forecast.pipeline.training_pipeline import TrainingPipeline
 
-# Load config (defaults to acm_forecast/config/config.yaml)
-config = AppConfig.from_yaml()
+# Load config
+config = AppConfig.from_yaml("path/to/config.yaml")
 
-# Use in pipeline
-pipeline = TrainingPipeline(spark, config)
+# Option 1: Using AppRunner (recommended)
+runner = AppRunner(config_path="path/to/config.yaml")
+runner.run()
+
+# Option 2: Using Pipeline classes directly
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.appName("ACM").getOrCreate()
+pipeline = TrainingPipeline(config, spark)
 results = pipeline.run(category="Total")
 ```
+
+### Plugin Configuration Example
+
+```python
+# In YAML config file:
+plugins:
+  data_source:
+    name: "acm"
+    config: {}
+  data_quality:
+    name: "default"
+    config:
+      additional_completeness_columns: ["meter_category", "resource_location"]
+      currency_column: "billing_currency_code"
+      expected_currency: "USD"
+  data_preparation:
+    name: "acm"
+    config: {}
+  feature_engineer:
+    name: "default"
+    config:
+      quantity_column: "quantity"
+  model:
+    name: "prophet"
+    config: {}
+```
+
+See `config.example.yaml` for the complete configuration template with inline comments.
 
 ### Environment Variables
 

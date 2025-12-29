@@ -50,15 +50,27 @@ pip install build twine
 
 ### Build Wheel Distribution
 
-Build the wheel and source distribution:
+Build the wheel package using Makefile (recommended):
+
+```bash
+# Build wheel package (recommended)
+make build
+
+# This creates:
+# - dist/acm_forecast-1.0.0-py3-none-any.whl (wheel)
+
+# Build and copy to deploy directory
+make build-deploy
+
+# Clean build artifacts
+make clean-build
+```
+
+Alternatively, build directly:
 
 ```bash
 # Build wheel and source distribution
 python -m build
-
-# This creates:
-# - dist/acm_forecast-1.0.0-py3-none-any.whl (wheel)
-# - dist/acm_forecast-1.0.0.tar.gz (source distribution)
 
 # Build wheel only
 python -m build --wheel
@@ -108,7 +120,7 @@ The package version is defined in two places (keep them synchronized):
 To update the version:
 
 1. Update both locations
-2. Rebuild the package: `python -m build --wheel`
+2. Rebuild the package: `make build`
 
 ## Using the Package in Other Projects
 

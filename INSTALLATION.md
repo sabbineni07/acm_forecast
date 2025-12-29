@@ -23,7 +23,16 @@ This guide provides instructions for installing and setting up the Azure Cost Ma
 
 ## Installation Options
 
-### Option 1: Full Installation (Recommended)
+### Option 1: Development Installation (Recommended)
+
+Install package in editable mode with development dependencies:
+
+```bash
+# From project root
+pip install -e ".[dev]"
+```
+
+### Option 2: Full Installation
 
 Install all packages including development tools and visualization libraries:
 
@@ -31,20 +40,12 @@ Install all packages including development tools and visualization libraries:
 pip install -r requirements.txt
 ```
 
-### Option 2: Minimal Installation
+### Option 3: Minimal Installation
 
 Install only core packages for essential functionality:
 
 ```bash
 pip install -r requirements-minimal.txt
-```
-
-### Option 3: Development Installation
-
-Install with development tools:
-
-```bash
-pip install -r requirements-dev.txt
 ```
 
 ## Step-by-Step Installation
@@ -250,15 +251,23 @@ print('✓ MLflow configured successfully')
    - Set up workspace connection
    - Configure Delta table access
 
-3. **Run Tests**:
+3. **Build Package** (optional):
    ```bash
-   pytest tests/
+   make build
    ```
 
-4. **Start Development**:
-   - Review `acm_forecast/README.md` for code structure
-   - Check `MODEL_DOCUMENTATION.md` for model details
-   - Run example notebooks in `notebooks/` directory
+4. **Run Tests**:
+   ```bash
+   make test
+   # Or with coverage
+   make test-cov
+   ```
+
+5. **Start Development**:
+   - Review `README.md` for project overview
+   - Check `acm_forecast/MODEL_DOCUMENTATION.md` for model details
+   - See `acm_forecast/examples/README_E2E.md` for examples
+   - Run example scripts: `python -m acm_forecast.examples.run_end_to_end`
 
 ## Additional Resources
 

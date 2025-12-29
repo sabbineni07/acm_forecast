@@ -1,104 +1,116 @@
-# Azure Cost Management Forecasting - Source Code
+# Source Code Documentation
 
-This directory contains the modular implementation of the Azure Cost Management Forecasting Model, organized according to the MODEL_DOCUMENTATION.md structure.
+This directory contains the plugin-based implementation of the Azure Cost Management Forecasting Framework.
 
 ## Directory Structure
 
 ```
 acm_forecast/
-├── config/           # Configuration settings (Section 7)
-│   └── settings.py   # All configuration classes
-├── data/             # Data module (Section 3)
-│   ├── data_source.py          # Data sourcing (3.1)
-│   ├── data_preparation.py     # Data preparation (3.3)
-│   ├── data_quality.py         # Data quality validation (3.1.4)
-│   └── feature_engineering.py  # Feature engineering (3.3.4, 5.1)
-├── models/           # Model implementations (Section 4-5)
-│   ├── prophet_model.py   # Prophet model (4.2.1, 5.2.1)
-│   ├── arima_model.py     # ARIMA model (4.2.1, 5.2.1)
-│   └── xgboost_model.py   # XGBoost model (4.2.1, 5.2.1)
-├── evaluation/       # Model evaluation (Section 6)
-│   ├── performance_metrics.py  # Performance metrics (6.1)
-│   ├── model_evaluator.py     # Model evaluation (6.1, 6.2)
-│   └── model_comparison.py    # Model comparison (6.1, 5.2.2)
-├── registry/         # Model registry (Section 7.2-7.3)
-│   ├── model_registry.py      # MLflow integration (7.2)
-│   └── model_versioning.py    # Versioning and controls (7.3)
-├── monitoring/       # Monitoring (Section 8)
-│   ├── performance_monitor.py  # Performance monitoring (8.1)
-│   ├── data_drift_monitor.py   # Data drift detection (8.2)
-│   └── retraining_scheduler.py # Retraining schedule (8.3)
-└── pipeline/         # Pipeline orchestration (Section 7.1)
-    ├── training_pipeline.py    # Training pipeline
-    └── forecast_pipeline.py   # Forecast pipeline
+├── config/              # YAML-based configuration system
+│   ├── config.example.yaml  # Configuration template
+│   └── specifications.py    # Pydantic configuration classes
+├── core/                 # Core framework components
+│   ├── app_runner.py        # AppRunner - main orchestration class
+│   ├── plugin_registry.py   # PluginFactory for plugin management
+│   ├── base_plugin.py       # Base plugin class
+│   └── interfaces.py        # Plugin interface definitions
+├── plugins/              # Pluggable components
+│   ├── data_source/         # Data source plugins (acm)
+│   ├── data_quality/        # Data quality plugins (default)
+│   ├── data_preparation/    # Data preparation plugins (acm)
+│   ├── feature_engineer/    # Feature engineering plugins (default)
+│   ├── models/              # Model plugins (prophet, arima, xgboost)
+│   ├── forecasters/         # Forecaster plugins (default)
+│   └── model_registry/      # Registry plugins (mlflow)
+├── pipeline/             # Pipeline orchestration
+│   ├── training_pipeline.py
+│   └── forecast_pipeline.py
+├── evaluation/           # Model evaluation and metrics
+├── monitoring/           # Performance monitoring and retraining
+└── examples/             # Example scripts
 ```
+
+## Plugin Architecture
+
+The framework uses a plugin-based architecture. All components are implemented as plugins:
+
+- **Data Source Plugins**: Load data from various sources (e.g., `acm` for Delta tables)
+- **Data Quality Plugins**: Validate data quality (e.g., `default` for comprehensive validation)
+- **Data Preparation Plugins**: Prepare and transform data (e.g., `acm` for ACM-specific prep)
+- **Feature Engineer Plugins**: Create features (e.g., `default` for temporal/lag/rolling features)
+- **Model Plugins**: Forecasting models (`prophet`, `arima`, `xgboost`)
+- **Forecaster Plugins**: Generate forecasts (e.g., `default`)
+- **Model Registry Plugins**: Store and manage models (e.g., `mlflow`)
 
 ## Usage
 
-### Training Pipeline
+### Using AppRunner (Recommended)
+
+```python
+from acm_forecast.core import AppRunner
+
+# Initialize with configuration
+runner = AppRunner(config_path="path/to/config.yaml")
+
+# Run complete pipeline
+runner.run()
+
+# Generate forecasts only
+runner.generate_forecasts(category="Total")
+```
+
+### Using Pipeline Classes
 
 ```python
 from pyspark.sql import SparkSession
-from acm_forecast.pipeline.training_pipeline import TrainingPipeline
+from acm_forecast.config import AppConfig
+from acm_forecast.pipeline import TrainingPipeline
+
+# Load configuration
+config = AppConfig.from_yaml("path/to/config.yaml")
 
 # Initialize Spark
 spark = SparkSession.builder.appName("ACM_Forecasting").getOrCreate()
 
-# Create pipeline
-pipeline = TrainingPipeline(spark)
-
-# Run training
-results = pipeline.run(category="Compute", start_date="2023-01-01", end_date="2024-01-01")
+# Create and run pipeline
+pipeline = TrainingPipeline(config, spark)
+results = pipeline.run(category="Total")
 ```
 
-### Forecast Generation
+### Using PluginFactory Directly
 
 ```python
-from acm_forecast.pipeline.forecast_pipeline import ForecastPipeline
+from acm_forecast.core import PluginFactory
+from acm_forecast.config import AppConfig
 
-# Create forecast pipeline
-forecast_pipeline = ForecastPipeline(spark)
+config = AppConfig.from_yaml("path/to/config.yaml")
+factory = PluginFactory()
 
-# Generate forecasts
-forecasts = forecast_pipeline.generate_forecasts(category="Compute", horizons=[30, 90, 180])
-```
-
-### Model Registry
-
-```python
-from acm_forecast.registry.model_registry import ModelRegistry
-
-# Initialize registry
-registry = ModelRegistry()
-
-# Register model
-version = registry.register_model(
-    model=trained_model,
-    model_name="azure_cost_forecast_prophet",
-    model_type="prophet",
-    metrics={"mape": 8.5, "r2": 0.85},
-    category="Compute"
-)
-
-# Promote to production
-registry.promote_model("azure_cost_forecast_prophet", version, "Production")
+# Create plugins
+data_source = factory.create_data_source(config, spark, plugin_name="acm")
+data_prep = factory.create_data_preparation(config, spark, plugin_name="acm")
+model = factory.create_model(config, category="Total", plugin_name="prophet")
 ```
 
 ## Configuration
 
-All configuration is managed through `acm_forecast/config/settings.py`. Key configuration classes:
+Configuration is managed through YAML files with Pydantic validation. See `config/README.md` for details.
 
-- `DataConfig`: Data source and processing settings
-- `ModelConfig`: Model hyperparameters
-- `TrainingConfig`: Training and validation settings
-- `FeatureConfig`: Feature engineering settings
-- `PerformanceConfig`: Performance targets and thresholds
-- `RegistryConfig`: MLflow registry settings
-- `MonitoringConfig`: Monitoring and retraining settings
-- `ForecastConfig`: Forecast generation settings
+Key configuration sections:
+- `data`: Data source settings
+- `model`: Model hyperparameters
+- `training`: Training and validation settings
+- `feature`: Feature engineering settings
+- `performance`: Performance targets
+- `registry`: MLflow registry settings
+- `monitoring`: Monitoring and retraining settings
+- `forecast`: Forecast generation settings
+- `plugins`: Plugin configuration
 
 ## Documentation
 
-See `MODEL_DOCUMENTATION.md` in the project root for complete documentation of all sections.
+- **Model Documentation**: See `MODEL_DOCUMENTATION.md` for comprehensive model details
+- **Examples**: See `examples/README_E2E.md` for usage examples
+- **Configuration**: See `config/README.md` for configuration guide
 
 
