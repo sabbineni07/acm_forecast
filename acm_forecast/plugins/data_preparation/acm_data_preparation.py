@@ -1,8 +1,10 @@
 """
-Default Data Preparation Plugin
+ACM Data Preparation Plugin
 
-PRIMARY IMPLEMENTATION for data preparation and preprocessing.
-The actual implementation is here - DataPreparation class delegates to this.
+Azure Cost Management (ACM) specific implementation for data preparation and preprocessing.
+This plugin contains ACM-specific column names and logic, making it suitable for ACM forecasting use cases.
+
+For other use cases (e.g., call propensity), create a custom plugin implementing IDataPreparation.
 """
 
 from typing import Dict, Any, Optional, List, Tuple
@@ -23,16 +25,24 @@ from ...config import AppConfig
 logger = logging.getLogger(__name__)
 
 
-class DefaultDataPreparation(BasePlugin, IDataPreparation):
+class ACMDataPreparation(BasePlugin, IDataPreparation):
     """
-    Default data preparation plugin - PRIMARY IMPLEMENTATION
+    ACM (Azure Cost Management) specific data preparation plugin
+    
+    This implementation contains ACM-specific column names and logic:
+    - Hardcoded columns: 'quantity', 'effective_price', 'meter_category', 
+                        'resource_location', 'plan_name'
+    - Designed specifically for Azure cost data forecasting
+    
     Section 3.3.1: Data Profile
     Section 3.3.2: Data Sampling
     Section 3.3.3: Data Treatment
+    
+    For other use cases, implement IDataPreparation interface with domain-specific logic.
     """
     
     def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None, **kwargs):
-        """Initialize default data preparation plugin"""
+        """Initialize ACM-specific data preparation plugin"""
         super().__init__(config, spark, **kwargs)
     
     def aggregate_data(self, df: DataFrame, group_by: Optional[List[str]] = None) -> DataFrame:

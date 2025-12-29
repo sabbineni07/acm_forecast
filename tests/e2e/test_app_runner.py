@@ -259,9 +259,11 @@ class TestAppRunner:
         runner = AppRunner(sample_config_yaml, session=mock_spark_session)
         result_forecast = runner.generate_forecasts(mock_model)
         
-        # Assertions
-        assert isinstance(result_forecast, pd.DataFrame)
-        assert len(result_forecast) == 30
+        # Assertions - generate_forecasts now returns a dictionary of forecasts by horizon
+        assert isinstance(result_forecast, dict)
+        assert "30_days" in result_forecast
+        assert isinstance(result_forecast["30_days"], pd.DataFrame)
+        assert len(result_forecast["30_days"]) == 30
         mock_model.predict.assert_called_once()
     
     @patch('acm_forecast.core.app_runner.PluginFactory')
@@ -361,7 +363,7 @@ class TestAppRunner:
         mock_data_prep.split.assert_called_once()
         mock_data_quality.comprehensive_validation.assert_called()
         mock_model.train.assert_called_once()
-        mock_model.predict.assert_called_once()
+        mock_model.predict.assert_called_once()  # Called once per horizon (config has [30] days)
     
     @patch('acm_forecast.core.app_runner.PluginFactory')
     def test_run_partial_steps(self, mock_factory_class, sample_config_yaml, mock_spark_session, sample_spark_dataframe):

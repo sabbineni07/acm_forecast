@@ -113,6 +113,7 @@ class FeatureConfig:
     # Optional fields with defaults in YAML
     lag_periods: Optional[List[int]] = Field(default=None, description="Lag periods for feature engineering")
     rolling_windows: Optional[List[int]] = Field(default=None, description="Rolling window sizes")
+    categorical_features: Optional[List[str]] = Field(default=None, description="List of categorical feature column names for one-hot encoding (used by XGBoost)")
 
 
 @dataclass

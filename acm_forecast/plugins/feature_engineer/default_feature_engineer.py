@@ -28,6 +28,7 @@ class DefaultFeatureEngineer(BasePlugin, IFeatureEngineer):
     def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None, **kwargs):
         """Initialize default feature engineering plugin"""
         super().__init__(config, spark, **kwargs)
+        # plugin_config is already set in BasePlugin.__init__ from kwargs
     
     def create_temporal_features(self, df: pd.DataFrame,
                                 date_col: str = None) -> pd.DataFrame:
@@ -215,10 +216,13 @@ class DefaultFeatureEngineer(BasePlugin, IFeatureEngineer):
         df_derived = df.copy()
         target_col = self.config.feature.target_column
         
-        # Cost per unit
-        if 'quantity' in df_derived.columns and target_col in df_derived.columns:
+        # Cost per unit (if quantity column exists - configurable via plugin config)
+        # Get from plugin-specific config dictionary (generic approach)
+        plugin_config = getattr(self, 'plugin_config', {}) or {}
+        quantity_col = plugin_config.get('quantity_column', 'quantity')  # Default fallback
+        if quantity_col in df_derived.columns and target_col in df_derived.columns:
             df_derived['CostPerUnit'] = (
-                df_derived[target_col] / (df_derived['quantity'] + 1e-8)
+                df_derived[target_col] / (df_derived[quantity_col] + 1e-8)
             )
         
         # Growth rates (if lag features exist)

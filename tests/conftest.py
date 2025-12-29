@@ -292,8 +292,8 @@ def test_delta_table_path(tmp_path_factory, spark_session):
         
         # Create DataSource plugin and generate sample data
         factory = PluginFactory()
-        data_source = factory.create_data_source(test_config, spark_session, plugin_name="delta")
-        print(f"  Generating sample data using DeltaDataSource plugin...")
+        data_source = factory.create_data_source(test_config, spark_session, plugin_name="acm")
+        print(f"  Generating sample data using ACMDeltaDataSource plugin...")
         spark_df = data_source.generate_sample_data()
         print(f"  Generated sample data")
         
@@ -314,6 +314,8 @@ def test_delta_table_path(tmp_path_factory, spark_session):
             LOCATION '{delta_table_path}'
         """)
         
+        # Count records after writing
+        record_count = spark_session.read.format("delta").load(delta_table_path).count()
         print(f"✅ Test Delta table created with {record_count:,} records")
         return delta_table_path
         

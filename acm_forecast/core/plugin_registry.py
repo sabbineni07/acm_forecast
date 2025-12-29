@@ -209,7 +209,7 @@ class PluginFactory:
             if hasattr(config, 'plugins') and config.plugins and config.plugins.data_source:
                 plugin_name = config.plugins.data_source.name
             else:
-                plugin_name = 'delta'  # Default built-in plugin
+                plugin_name = 'acm'  # Default built-in plugin
         
         plugin_class = self.registry.get_plugin_class('data_source', plugin_name)
         
@@ -232,17 +232,27 @@ class PluginFactory:
                            plugin_name: Optional[str] = None,
                            **kwargs) -> IDataQuality:
         """Create data quality plugin instance"""
-        plugin_name = plugin_name or getattr(config.plugins, 'data_quality', {}).get('name', 'default')
+        # Get plugin name from config or use default
+        if plugin_name is None:
+            if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'data_quality') and config.plugins.data_quality:
+                plugin_name = config.plugins.data_quality.name
+            else:
+                plugin_name = 'default'  # Default built-in plugin
+        
         plugin_class = self.registry.get_plugin_class('data_quality', plugin_name)
         
         if plugin_class is None:
             raise ValueError(f"Data quality plugin '{plugin_name}' not found")
         
-        plugin_config = getattr(config.plugins, 'data_quality', {}).get('config', {})
-        plugin_config.update(kwargs)
+        # Get plugin-specific config from config.plugins.data_quality.config
+        plugin_config = {}
+        if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'data_quality') and config.plugins.data_quality:
+            plugin_config = getattr(config.plugins.data_quality, 'config', {}) or {}
+        plugin_config.update(kwargs.pop('plugin_config', {}))
+        kwargs['plugin_config'] = plugin_config
         
         factory = self.registry._factories['data_quality'].get(plugin_name)
-        return factory(plugin_class, config, spark, plugin_config=plugin_config)
+        return factory(plugin_class, config, spark, **kwargs)
     
     def create_data_preparation(self,
                                config,
@@ -250,7 +260,7 @@ class PluginFactory:
                                plugin_name: Optional[str] = None,
                                **kwargs) -> IDataPreparation:
         """Create data preparation plugin instance"""
-        plugin_name = plugin_name or getattr(config.plugins, 'data_preparation', {}).get('name', 'default')
+        plugin_name = plugin_name or getattr(config.plugins, 'data_preparation', {}).get('name', 'acm')
         plugin_class = self.registry.get_plugin_class('data_preparation', plugin_name)
         
         if plugin_class is None:
@@ -268,17 +278,27 @@ class PluginFactory:
                                plugin_name: Optional[str] = None,
                                **kwargs) -> IFeatureEngineer:
         """Create feature engineer plugin instance"""
-        plugin_name = plugin_name or getattr(config.plugins, 'feature_engineer', {}).get('name', 'default')
+        # Get plugin name from config or use default
+        if plugin_name is None:
+            if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'feature_engineer') and config.plugins.feature_engineer:
+                plugin_name = config.plugins.feature_engineer.name
+            else:
+                plugin_name = 'default'  # Default built-in plugin
+        
         plugin_class = self.registry.get_plugin_class('feature_engineer', plugin_name)
         
         if plugin_class is None:
             raise ValueError(f"Feature engineer plugin '{plugin_name}' not found")
         
-        plugin_config = getattr(config.plugins, 'feature_engineer', {}).get('config', {})
-        plugin_config.update(kwargs)
+        # Get plugin-specific config from config.plugins.feature_engineer.config
+        plugin_config = {}
+        if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'feature_engineer') and config.plugins.feature_engineer:
+            plugin_config = getattr(config.plugins.feature_engineer, 'config', {}) or {}
+        plugin_config.update(kwargs.pop('plugin_config', {}))
+        kwargs['plugin_config'] = plugin_config
         
         factory = self.registry._factories['feature_engineer'].get(plugin_name)
-        return factory(plugin_class, config, spark, plugin_config=plugin_config)
+        return factory(plugin_class, config, spark, **kwargs)
     
     def create_model(self,
                     config,

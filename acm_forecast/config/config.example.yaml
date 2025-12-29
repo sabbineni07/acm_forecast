@@ -2,29 +2,29 @@
 # Copy this file to config.yaml and customize for your environment
 
 # Application name
-name: "azure_cost_forecasting"
+name: "azure_cost_forecasting"  # Application/configuration name
 
 # ============================================================================
 # Data Configuration
 # ============================================================================
 data:
   # Delta table configuration
-  delta_table_path: "azure_cost_management.amortized_costs"
-  database_name: "cost_management"
-  table_name: "amortized_costs"
+  delta_table_path: "azure_cost_management.amortized_costs"  # Full Delta table path (database.table)
+  database_name: "cost_management"  # Delta database name
+  table_name: "amortized_costs"  # Delta table name
   
   # Data constraints
-  min_historical_months: 12
-  max_data_delay_hours: 168  # 7 days
+  min_historical_months: 12  # Minimum months of historical data required
+  max_data_delay_hours: 168  # Maximum acceptable data delay in hours (7 days)
   
   # Regional distribution
-  primary_region: "East US"
-  primary_region_weight: 0.9
-  secondary_region: "South Central US"
-  secondary_region_weight: 0.1
+  primary_region: "East US"  # Primary region name
+  primary_region_weight: 0.9  # Weight for primary region (0-1)
+  secondary_region: "South Central US"  # Secondary region name
+  secondary_region_weight: 0.1  # Weight for secondary region (0-1)
   
   # Cost categories
-  cost_categories:
+  cost_categories:  # List of cost categories to forecast
     - "Compute"
     - "Storage"
     - "Network"
@@ -36,9 +36,9 @@ data:
   
   # Sample data generation (for development/testing)
   # Set generate_sample_data: true to generate synthetic data instead of loading from Delta
-  generate_sample_data: false
+  generate_sample_data: false  # Generate synthetic data if table doesn't exist
   sample_data_days: 365  # Number of days of historical data
-  sample_data_records_per_day: 100  # Average records per day
+  sample_data_records_per_day: 100  # Average records per day in sample data
   sample_data_subscriptions: 3  # Number of different subscriptions
   sample_data_start_date: null  # Start date (YYYY-MM-DD, null = days ago from today)
 
@@ -47,96 +47,138 @@ data:
 # ============================================================================
 model:
   prophet:
-    yearly_seasonality: true
-    weekly_seasonality: true
-    daily_seasonality: false
-    seasonality_mode: "multiplicative"
-    changepoint_prior_scale: 0.05
-    holidays_prior_scale: 10.0
-    uncertainty_samples: 1000
+    yearly_seasonality: true  # Enable yearly seasonal patterns
+    weekly_seasonality: true  # Enable weekly seasonal patterns
+    daily_seasonality: false  # Enable daily seasonal patterns (usually false for daily data)
+    seasonality_mode: "multiplicative"  # Seasonality mode: additive or multiplicative
+    changepoint_prior_scale: 0.05  # Trend flexibility (lower = smoother, higher = more flexible)
+    holidays_prior_scale: 10.0  # Holiday effect strength
+    uncertainty_samples: 1000  # Number of samples for confidence intervals
   
   arima:
-    seasonal: true
-    seasonal_period: 12
-    max_p: 5
-    max_d: 2
-    max_q: 5
-    information_criterion: "aic"
+    seasonal: true  # Enable seasonal ARIMA component
+    seasonal_period: 12  # Seasonal period (e.g., 12 for monthly data)
+    max_p: 5  # Maximum autoregressive order
+    max_d: 2  # Maximum differencing order
+    max_q: 5  # Maximum moving average order
+    information_criterion: "aic"  # Information criterion: aic or bic
   
   xgboost:
-    n_estimators: 100
-    max_depth: 6
-    learning_rate: 0.1
-    subsample: 0.8
-    colsample_bytree: 0.8
-    objective: "reg:squarederror"
-    early_stopping_rounds: 10
+    n_estimators: 100  # Number of boosting rounds
+    max_depth: 6  # Maximum tree depth
+    learning_rate: 0.1  # Learning rate (shrinkage)
+    subsample: 0.8  # Fraction of samples used per tree
+    colsample_bytree: 0.8  # Fraction of features used per tree
+    objective: "reg:squarederror"  # Objective function
+    early_stopping_rounds: 10  # Early stopping rounds for validation
 
 # ============================================================================
 # Training Configuration
 # ============================================================================
 training:
-  train_split: 0.70
-  validation_split: 0.15
-  test_split: 0.15
-  min_training_months: 12
-  recommended_training_months: 18
-  validation_months: 3
-  test_months: 3
-  cv_initial: "180 days"
-  cv_period: "30 days"
-  cv_horizon: "30 days"
+  train_split: 0.70  # Proportion of data for training (0-1)
+  validation_split: 0.15  # Proportion of data for validation (0-1)
+  test_split: 0.15  # Proportion of data for testing (0-1)
+  min_training_months: 12  # Minimum training months required
+  recommended_training_months: 18  # Recommended training months
+  validation_months: 3  # Validation period in months
+  test_months: 3  # Test period in months
+  cv_initial: "180 days"  # Initial period for cross-validation
+  cv_period: "30 days"  # Period between CV cuts
+  cv_horizon: "30 days"  # Forecast horizon for CV
 
 # ============================================================================
 # Feature Engineering Configuration
 # ============================================================================
 feature:
-  lag_periods: [1, 2, 3, 7, 14, 30]
-  rolling_windows: [3, 7, 14, 30]
-  target_column: "cost_in_billing_currency"
-  date_column: "usage_date"
+  lag_periods: [1, 2, 3, 7, 14, 30]  # Lag periods for lag features
+  rolling_windows: [3, 7, 14, 30]  # Window sizes for rolling statistics
+  target_column: "cost_in_billing_currency"  # Target variable column name
+  date_column: "usage_date"  # Date/timestamp column name
+  categorical_features: ["meter_category", "resource_location", "plan_name"]  # Categorical columns for one-hot encoding (used by XGBoost)
 
 # ============================================================================
 # Performance Configuration
 # ============================================================================
 performance:
-  target_mape: 10.0
-  target_r2: 0.8
-  warning_mape: 12.0
-  critical_mape: 15.0
-  warning_missing_data: 5.0
-  critical_missing_data: 10.0
+  target_mape: 10.0  # Target MAPE percentage for acceptable performance
+  target_r2: 0.8  # Target R² score for acceptable performance
+  warning_mape: 12.0  # MAPE threshold for warnings
+  critical_mape: 15.0  # MAPE threshold for critical alerts
+  warning_missing_data: 5.0  # Missing data percentage threshold for warnings
+  critical_missing_data: 10.0  # Missing data percentage threshold for critical alerts
 
 # ============================================================================
 # Model Registry Configuration
 # ============================================================================
 registry:
-  mlflow_tracking_uri: null  # Set via environment variable
-  mlflow_experiment_name: "/Users/team/azure_cost_forecasting"
-  prophet_model_name: "azure_cost_forecast_prophet"
-  arima_model_name: "azure_cost_forecast_arima"
-  xgboost_model_name: "azure_cost_forecast_xgboost"
-  model_stages: ["None", "Staging", "Production"]
+  mlflow_tracking_uri: null  # MLflow tracking URI (set via environment variable if null)
+  mlflow_experiment_name: "/Users/team/azure_cost_forecasting"  # MLflow experiment name (required)
+  prophet_model_name: "azure_cost_forecast_prophet"  # Prophet model name in registry
+  arima_model_name: "azure_cost_forecast_arima"  # ARIMA model name in registry
+  xgboost_model_name: "azure_cost_forecast_xgboost"  # XGBoost model name in registry
+  model_stages: ["None", "Staging", "Production"]  # Available model version stages
 
 # ============================================================================
 # Monitoring Configuration
 # ============================================================================
 monitoring:
-  monthly_retraining: true
-  quarterly_retraining: true
-  retraining_trigger_mape: 15.0
-  max_months_without_retraining: 6
-  realtime_monitoring: true
-  daily_reports: true
-  weekly_reports: true
-  monthly_reports: true
+  monthly_retraining: true  # Enable monthly automatic retraining
+  quarterly_retraining: true  # Enable quarterly automatic retraining
+  retraining_trigger_mape: 15.0  # MAPE threshold to trigger retraining
+  max_months_without_retraining: 6  # Maximum months without retraining
+  realtime_monitoring: true  # Enable real-time monitoring
+  daily_reports: true  # Generate daily monitoring reports
+  weekly_reports: true  # Generate weekly monitoring reports
+  monthly_reports: true  # Generate monthly monitoring reports
 
 # ============================================================================
 # Forecast Configuration
 # ============================================================================
 forecast:
-  forecast_horizons_days: [30, 90, 180, 365]
-  daily_forecasts: true
-  weekly_forecasts: true
-  monthly_forecasts: true
+  forecast_horizons_days: [30, 90, 180, 365]  # Forecast horizons in days (multiple supported)
+  daily_forecasts: true  # Enable daily-level forecasts
+  weekly_forecasts: true  # Enable weekly-level forecasts
+  monthly_forecasts: true  # Enable monthly-level forecasts
 
+# ============================================================================
+# Plugin Configuration
+# ============================================================================
+plugins:
+  data_source:
+    name: "acm"  # Data source plugin name
+    config: {}  # Plugin-specific configuration (generic dictionary)
+  
+  data_quality:
+    name: "default"  # Data quality plugin name
+    config:
+      # Plugin-specific configuration (generic - customize for your use case)
+      # Example for ACM data:
+      additional_completeness_columns: ["meter_category", "resource_location", "billing_currency_code"]  # Additional columns to check for completeness
+      currency_column: "billing_currency_code"  # Currency column name for validation
+      expected_currency: "USD"  # Expected currency value
+      # For other use cases, customize these keys/values as needed
+  
+  data_preparation:
+    name: "acm"  # Data preparation plugin name
+    config: {}  # Plugin-specific configuration
+  
+  feature_engineer:
+    name: "default"  # Feature engineering plugin name
+    config:
+      # Plugin-specific configuration (generic - customize for your use case)
+      # Example for ACM data:
+      quantity_column: "quantity"  # Quantity column name for derived features (e.g., CostPerUnit)
+      # For other use cases, customize these keys/values as needed
+  
+  model:
+    name: null  # Model plugin name (uses model.selected_model if not specified)
+    config: {}  # Plugin-specific configuration
+  
+  forecaster:
+    name: "default"  # Forecaster plugin name
+    config: {}  # Plugin-specific configuration
+  
+  model_registry:
+    name: "mlflow"  # Model registry plugin name
+    config: {}  # Plugin-specific configuration

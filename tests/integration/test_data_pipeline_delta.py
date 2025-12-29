@@ -19,7 +19,7 @@ class TestDataPipelineDelta:
         factory = PluginFactory()
         
         # Step 1: Load data
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df_spark = data_source.load_data()
 
         # Step 2: Data quality validation
@@ -28,23 +28,34 @@ class TestDataPipelineDelta:
         assert quality_results["quality_score"] >= 0
 
         # Step 3: Data preparation - aggregate daily costs
-        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="default")
+        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="acm")
         daily_df_spark = data_prep.aggregate_data(df_spark)
 
-        # Step 4: Converting to Pandas...
-        daily_df = daily_df_spark.toPandas()
+        # Step 4: Split data (split expects Spark DataFrame)
+        train_df_spark, val_df_spark, test_df_spark = data_prep.split(daily_df_spark)
+        
+        # Step 5: Convert to Pandas for feature engineering
+        train_df = train_df_spark.toPandas()
+        val_df = val_df_spark.toPandas()
+        test_df = test_df_spark.toPandas()
+        
         # Explicitly convert date column to datetime64[ns] to avoid dtype issues
-        daily_df[test_app_config.feature.date_column] = pd.to_datetime(
-            daily_df[test_app_config.feature.date_column]
+        train_df[test_app_config.feature.date_column] = pd.to_datetime(
+            train_df[test_app_config.feature.date_column]
         ).astype('datetime64[ns]')
-
-        # Step 5: Split data
-        train_df, val_df, test_df = data_prep.split(daily_df)
+        val_df[test_app_config.feature.date_column] = pd.to_datetime(
+            val_df[test_app_config.feature.date_column]
+        ).astype('datetime64[ns]')
+        test_df[test_app_config.feature.date_column] = pd.to_datetime(
+            test_df[test_app_config.feature.date_column]
+        ).astype('datetime64[ns]')
 
         assert len(train_df) > 0
         assert len(val_df) > 0
         assert len(test_df) > 0
-        assert len(train_df) + len(val_df) + len(test_df) == len(daily_df)
+        # Get total count from Spark DataFrame before conversion
+        daily_count = daily_df_spark.count()
+        assert len(train_df) + len(val_df) + len(test_df) == daily_count
 
         # Step 6: Feature engineering
         feature_engineer = factory.create_feature_engineer(test_app_config, spark_session, plugin_name="default")
@@ -56,11 +67,11 @@ class TestDataPipelineDelta:
         factory = PluginFactory()
         
         # Load data
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df = data_source.load_data()
 
         # Aggregate
-        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="default")
+        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="acm")
         daily_df = data_prep.aggregate_data(df)
 
         assert daily_df is not None
@@ -76,25 +87,18 @@ class TestDataPipelineDelta:
         factory = PluginFactory()
         
         # Load and aggregate data
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df = data_source.load_data()
         
-        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="default")
+        data_prep = factory.create_data_preparation(test_app_config, spark_session, plugin_name="acm")
         daily_df_spark = data_prep.aggregate_data(df)
 
-        # Convert to Pandas
-        daily_df = daily_df_spark.toPandas()
-        # Explicitly convert date column to datetime64[ns]
-        daily_df[test_app_config.feature.date_column] = pd.to_datetime(
-            daily_df[test_app_config.feature.date_column]
-        ).astype('datetime64[ns]')
-
-        # Prepare for Prophet
-        prophet_data = data_prep.prepare_for_training(daily_df, model_type="prophet")
+        # Prepare for Prophet (expects Spark DataFrame)
+        prophet_data = data_prep.prepare_for_training(daily_df_spark, model_type="prophet")
         assert "ds" in prophet_data.columns
         assert "y" in prophet_data.columns
 
-        # Prepare for ARIMA
-        arima_data = data_prep.prepare_for_training(daily_df, model_type="arima")
+        # Prepare for ARIMA (expects Spark DataFrame)
+        arima_data = data_prep.prepare_for_training(daily_df_spark, model_type="arima")
         assert len(arima_data) > 0
         assert hasattr(arima_data, 'index')  # Should be a Series with datetime index

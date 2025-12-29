@@ -27,6 +27,7 @@ class DefaultDataQuality(BasePlugin, IDataQuality):
     def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None, **kwargs):
         """Initialize default data quality plugin"""
         super().__init__(config, spark, **kwargs)
+        # plugin_config is already set in BasePlugin.__init__ from kwargs
     
     def validate_completeness(self, df: DataFrame) -> Dict[str, Any]:
         """
@@ -40,14 +41,24 @@ class DefaultDataQuality(BasePlugin, IDataQuality):
         """
         total_records = df.count()
         
-        # Check for missing values in key columns (using snake_case)
+        # Check for missing values in key columns
+        # Core required columns (always checked)
         key_columns = [
-            self.config.feature.date_column,  # usage_date
-            self.config.feature.target_column,  # cost_in_billing_currency
-            "meter_category",
-            "resource_location",
-            "billing_currency_code"
+            self.config.feature.date_column,
+            self.config.feature.target_column,
         ]
+        
+        # Optional additional columns to check (if they exist in DataFrame)
+        # Get from plugin-specific config dictionary (generic approach)
+        optional_columns = []
+        plugin_config = getattr(self, 'plugin_config', {}) or {}
+        if 'additional_completeness_columns' in plugin_config:
+            optional_columns = plugin_config.get('additional_completeness_columns', []) or []
+        
+        # Only add optional columns if they exist in the DataFrame
+        for col_name in optional_columns:
+            if col_name in df.columns:
+                key_columns.append(col_name)
         
         missing_counts = {}
         for col_name in key_columns:
@@ -98,8 +109,14 @@ class DefaultDataQuality(BasePlugin, IDataQuality):
         # Check for zero costs (may be valid, but flag for review)
         zero_costs = df.filter(sqlf.col(target_col) == 0).count()
         
-        # Check currency consistency (should be USD)
-        currency_check = df.filter(sqlf.col("billing_currency_code") != "USD").count() if "billing_currency_code" in df.columns else 0
+        # Check currency consistency (if currency column exists and expected currency is configured)
+        # Get from plugin-specific config dictionary (generic approach)
+        currency_check = 0
+        plugin_config = getattr(self, 'plugin_config', {}) or {}
+        currency_col = plugin_config.get('currency_column', None)
+        expected_currency = plugin_config.get('expected_currency', None)
+        if currency_col and expected_currency and currency_col in df.columns:
+            currency_check = df.filter(sqlf.col(currency_col) != expected_currency).count()
 
         # Check date range validity
         date_col = self.config.feature.date_column

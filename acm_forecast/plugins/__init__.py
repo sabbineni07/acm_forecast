@@ -18,9 +18,9 @@ from ..core.interfaces import (
 )
 
 # Import built-in plugin implementations
-from .data_source.delta_data_source import DeltaDataSource
+from .data_source.acm_delta_data_source import ACMDeltaDataSource
 from .data_quality.default_data_quality import DefaultDataQuality
-from .data_preparation.default_data_preparation import DefaultDataPreparation
+from .data_preparation.acm_data_preparation import ACMDataPreparation
 from .feature_engineer.default_feature_engineer import DefaultFeatureEngineer
 from .models.prophet_model_plugin import ProphetModelPlugin
 from .models.arima_model_plugin import ARIMAModelPlugin
@@ -30,7 +30,7 @@ from .model_registry.mlflow_registry import MLflowModelRegistry
 
 # Export plugin dictionaries for registration
 data_source_plugins: Dict[str, Type[IDataSource]] = {
-    'delta': DeltaDataSource,
+    'acm': ACMDeltaDataSource,
 }
 
 data_quality_plugins: Dict[str, Type[IDataQuality]] = {
@@ -38,7 +38,7 @@ data_quality_plugins: Dict[str, Type[IDataQuality]] = {
 }
 
 data_preparation_plugins: Dict[str, Type[IDataPreparation]] = {
-    'default': DefaultDataPreparation,
+    'acm': ACMDataPreparation,
 }
 
 feature_engineer_plugins: Dict[str, Type[IFeatureEngineer]] = {

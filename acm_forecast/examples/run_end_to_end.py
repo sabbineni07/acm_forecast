@@ -78,7 +78,7 @@ def load_or_generate_data(
     logger.info("=" * 70)
     
     # Create data source plugin
-    data_source = factory.create_data_source(config, spark=spark, plugin_name="delta")
+    data_source = factory.create_data_source(config, spark=spark, plugin_name="acm")
     logger.info(f"Loading data from data source: {config.data.delta_table_path}")
     df = data_source.load_data()
 
@@ -114,7 +114,7 @@ def prepare_data(
     logger.info("=" * 70)
     
     # Create data preparation plugin
-    data_prep = factory.create_data_preparation(config, spark=spark, plugin_name="default")
+    data_prep = factory.create_data_preparation(config, spark=spark, plugin_name="acm")
     
     # Aggregate daily costs
     logger.info("Aggregating daily costs...")
@@ -199,7 +199,7 @@ def train_model(
     logger.info(f"Training {model_name} model for category: {category}")
     
     # Create data preparation plugin for model-specific data prep
-    data_prep = factory.create_data_preparation(config, spark=spark, plugin_name="default")
+    data_prep = factory.create_data_preparation(config, spark=spark, plugin_name="acm")
     
     # Create model plugin
     model = factory.create_model(config, category=category, plugin_name=model_name)

@@ -222,8 +222,12 @@ class XGBoostModelPlugin(BasePlugin, IModel):
         exclude_cols = [self.config.feature.target_column, self.config.feature.date_column]
         feature_cols = [col for col in df.columns if col not in exclude_cols]
         
-        # Handle categorical features (one-hot encoding) - using snake_case
-        categorical_cols = ['meter_category', 'resource_location', 'plan_name']
+        # Handle categorical features (one-hot encoding)
+        # Get categorical columns from config, fallback to empty list if not configured
+        categorical_cols = getattr(self.config.feature, 'categorical_features', None)
+        if categorical_cols is None:
+            categorical_cols = []
+        
         for col in categorical_cols:
             if col in df.columns:
                 df = pd.get_dummies(df, columns=[col], prefix=col, drop_first=True)

@@ -1,119 +1,128 @@
-name: "azure_cost_forecasting_e2e"
+name: "azure_cost_forecasting_e2e"  # Application/configuration name
 
 # Data Source Configuration
 data:
-  delta_table_path: "azure_cost_db.cost_data"
-  database_name: "azure_cost_db"
-  table_name: "cost_data"
-  min_historical_months: 6
-  max_forecast_horizon: 3
-  cost_categories: ["Total", "Compute", "Storage"]
-  region_weights:
-    eastus: 1.2
-    westus: 1.0
-    centralus: 0.8
+  delta_table_path: "azure_cost_db.cost_data"  # Full Delta table path (database.table)
+  database_name: "azure_cost_db"  # Delta database name
+  table_name: "cost_data"  # Delta table name
+  min_historical_months: 6  # Minimum months of historical data required
+  max_forecast_horizon: 3  # Maximum forecast horizon in months
+  cost_categories: ["Total", "Compute", "Storage"]  # List of cost categories to forecast
+  region_weights:  # Regional weight factors (optional)
+    eastus: 1.2  # Weight for East US region
+    westus: 1.0  # Weight for West US region
+    centralus: 0.8  # Weight for Central US region
   
   # Sample data generation (if delta table doesn't exist)
-  generate_sample_data: true
-  sample_data_days: 365
-  sample_data_records_per_day: 100
-  sample_data_subscriptions: 5
-  sample_data_start_date: "2023-01-01"
+  generate_sample_data: true  # Generate synthetic data if table doesn't exist
+  sample_data_days: 365  # Number of days of sample data to generate
+  sample_data_records_per_day: 100  # Average records per day in sample data
+  sample_data_subscriptions: 5  # Number of different subscriptions in sample data
+  sample_data_start_date: "2023-01-01"  # Start date for sample data (YYYY-MM-DD)
 
 # Model Configuration
 model:
-  selected_model: "prophet"  # Options: prophet, arima, xgboost (if xgboost plugin is available)
+  selected_model: "prophet"  # Model to use: prophet, arima, or xgboost
   prophet:
-    yearly_seasonality: true
-    weekly_seasonality: true
-    daily_seasonality: false
-    seasonality_mode: "additive"
-    changepoint_prior_scale: 0.05
-    holidays_prior_scale: 10.0
-    uncertainty_samples: 500
+    yearly_seasonality: true  # Enable yearly seasonal patterns
+    weekly_seasonality: true  # Enable weekly seasonal patterns
+    daily_seasonality: false  # Enable daily seasonal patterns (usually false for daily data)
+    seasonality_mode: "additive"  # Seasonality mode: additive or multiplicative
+    changepoint_prior_scale: 0.05  # Trend flexibility (lower = smoother, higher = more flexible)
+    holidays_prior_scale: 10.0  # Holiday effect strength
+    uncertainty_samples: 500  # Number of samples for confidence intervals
   arima:
-    order: [5, 1, 0]
-    seasonal_order: [1, 1, 0, 12]
-    suppress_warnings: true
-    stepwise: true
-    information_criterion: "aic"
+    order: [5, 1, 0]  # ARIMA order (p, d, q)
+    seasonal_order: [1, 1, 0, 12]  # Seasonal ARIMA order (P, D, Q, s)
+    suppress_warnings: true  # Suppress ARIMA warnings
+    stepwise: true  # Use stepwise selection for parameters
+    information_criterion: "aic"  # Information criterion: aic or bic
   xgboost:
-    n_estimators: 100
-    learning_rate: 0.1
-    max_depth: 6
-    subsample: 0.8
-    colsample_bytree: 0.8
+    n_estimators: 100  # Number of boosting rounds
+    learning_rate: 0.1  # Learning rate (shrinkage)
+    max_depth: 6  # Maximum tree depth
+    subsample: 0.8  # Fraction of samples used per tree
+    colsample_bytree: 0.8  # Fraction of features used per tree
 
 # Training Configuration
 training:
-  train_split: 0.7
-  validation_split: 0.15
-  test_split: 0.15
+  train_split: 0.7  # Proportion of data for training (0-1)
+  validation_split: 0.15  # Proportion of data for validation (0-1)
+  test_split: 0.15  # Proportion of data for testing (0-1)
 
 # Feature Engineering Configuration
 feature:
-  date_column: "usage_date"
-  target_column: "cost_in_billing_currency"
-  categorical_features: ["meter_category", "resource_location", "plan_name"]
-  numerical_features: ["quantity", "effective_price"]
-  time_features: ["day_of_week", "day_of_month", "month", "quarter", "year"]
-  lag_features: [7, 14, 28]
-  rolling_features:
-    window_sizes: [7, 14, 28]
-    aggregations: ["mean", "std"]
+  date_column: "usage_date"  # Date/timestamp column name
+  target_column: "cost_in_billing_currency"  # Target variable column name
+  categorical_features: ["meter_category", "resource_location", "plan_name"]  # Categorical columns for one-hot encoding
+  numerical_features: ["quantity", "effective_price"]  # Numerical feature columns
+  time_features: ["day_of_week", "day_of_month", "month", "quarter", "year"]  # Temporal features to extract
+  lag_features: [7, 14, 28]  # Lag periods for lag features
+  rolling_features:  # Rolling window features
+    window_sizes: [7, 14, 28]  # Window sizes for rolling statistics
+    aggregations: ["mean", "std"]  # Aggregation functions (mean, std, min, max)
 
 # Performance Metrics Configuration
 performance:
-  metrics: ["mae", "rmse", "mape", "r2"]
-  mape_threshold: 10.0
-  r2_threshold: 0.7
+  metrics: ["mae", "rmse", "mape", "r2"]  # Metrics to calculate
+  mape_threshold: 10.0  # MAPE threshold for warnings
+  r2_threshold: 0.7  # R² threshold for acceptable performance
 
 # Model Registry Configuration
 registry:
-  model_name: "acm_forecast_model"
-  model_version_stage: "Staging"
-  mlflow_experiment_name: "acm_forecast_e2e"
-  mlflow_tracking_uri: "file:///tmp/mlruns"
+  model_name: "acm_forecast_model"  # Model name in registry
+  model_version_stage: "Staging"  # Model version stage (None, Staging, Production)
+  mlflow_experiment_name: "acm_forecast_e2e"  # MLflow experiment name (required)
+  mlflow_tracking_uri: "file:///tmp/mlruns"  # MLflow tracking URI (file:// or http://)
 
 # Monitoring Configuration
 monitoring:
-  data_drift_threshold: 0.1
-  model_drift_threshold: 0.05
-  retraining_interval_days: 30
+  data_drift_threshold: 0.1  # Threshold for data drift detection
+  model_drift_threshold: 0.05  # Threshold for model performance drift
+  retraining_interval_days: 30  # Days between automatic retraining
 
 # Forecast Configuration
 forecast:
-  forecast_horizons_days: [30, 60, 90]  # Multiple horizons supported
-  daily_forecasts: true
-  weekly_forecasts: true
-  monthly_forecasts: true
+  forecast_horizons_days: [30, 60, 90]  # Forecast horizons in days (multiple supported)
+  daily_forecasts: true  # Enable daily-level forecasts
+  weekly_forecasts: true  # Enable weekly-level forecasts
+  monthly_forecasts: true  # Enable monthly-level forecasts
 
 # MLflow Configuration
 mlflow:
-  tracking_uri: "file:///tmp/mlruns"
-  experiment_name: "acm_forecast_e2e"
+  tracking_uri: "file:///tmp/mlruns"  # MLflow tracking server URI
+  experiment_name: "acm_forecast_e2e"  # MLflow experiment name
 
 # Plugin Configuration
 plugins:
   data_source:
-    name: "delta"
-    config: {}
+    name: "acm"  # Data source plugin name
+    config: {}  # Plugin-specific configuration (generic dictionary)
   data_quality:
-    name: "default"
-    config: {}
+    name: "default"  # Data quality plugin name
+    config:
+      # Plugin-specific configuration (generic - customize for your use case)
+      # Example for ACM data:
+      additional_completeness_columns: ["meter_category", "resource_location", "billing_currency_code"]  # Additional columns to check for completeness
+      currency_column: "billing_currency_code"  # Currency column name for validation
+      expected_currency: "USD"  # Expected currency value
+      # For other use cases, customize these keys/values as needed
   data_preparation:
-    name: "default"
-    config: {}
+    name: "acm"  # Data preparation plugin name
+    config: {}  # Plugin-specific configuration
   feature_engineer:
-    name: "default"
-    config: {}
+    name: "default"  # Feature engineering plugin name
+    config:
+      # Plugin-specific configuration (generic - customize for your use case)
+      # Example for ACM data:
+      quantity_column: "quantity"  # Quantity column name for derived features (e.g., CostPerUnit)
+      # For other use cases, customize these keys/values as needed
   model:
-    name: "prophet"  # Will use model.selected_model if not specified
-    config: {}
+    name: "prophet"  # Model plugin name (uses model.selected_model if not specified)
+    config: {}  # Plugin-specific configuration
   forecaster:
-    name: "default"
-    config: {}
+    name: "default"  # Forecaster plugin name
+    config: {}  # Plugin-specific configuration
   model_registry:
-    name: "mlflow"
-    config: {}
-
+    name: "mlflow"  # Model registry plugin name
+    config: {}  # Plugin-specific configuration

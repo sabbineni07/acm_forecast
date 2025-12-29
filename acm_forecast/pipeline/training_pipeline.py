@@ -37,8 +37,8 @@ class TrainingPipeline:
         self.factory = PluginFactory()
         
         # Initialize components using PluginFactory
-        self.data_source = self.factory.create_data_source(config, spark, plugin_name="delta")
-        self.data_prep = self.factory.create_data_preparation(config, spark, plugin_name="default")
+        self.data_source = self.factory.create_data_source(config, spark, plugin_name="acm")
+        self.data_prep = self.factory.create_data_preparation(config, spark, plugin_name="acm")
         self.data_quality = self.factory.create_data_quality(config, spark, plugin_name="default")
         self.feature_engineer = self.factory.create_feature_engineer(config, spark, plugin_name="default")
         self.model_registry = self.factory.create_model_registry(config, plugin_name="mlflow")

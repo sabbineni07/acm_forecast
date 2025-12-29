@@ -20,7 +20,7 @@ Usage:
 """
 import logging
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union, Dict
 from pyspark.sql import SparkSession, DataFrame
 import pandas as pd
 
@@ -77,7 +77,7 @@ class AppRunner:
         factory = self._get_factory()
         
         # Create data source plugin
-        data_source = factory.create_data_source(self.config, spark=self.spark, plugin_name="delta")
+        data_source = factory.create_data_source(self.config, spark=self.spark, plugin_name="acm")
         logger.info(f"Loading data from data source: {self.config.data.delta_table_path}")
         df = data_source.load_data()
 
@@ -106,7 +106,7 @@ class AppRunner:
         factory = self._get_factory()
         
         # Create data preparation plugin
-        data_prep = factory.create_data_preparation(self.config, spark=self.spark, plugin_name="default")
+        data_prep = factory.create_data_preparation(self.config, spark=self.spark, plugin_name="acm")
         
         # Aggregate daily costs
         logger.info("Aggregating daily costs...")
@@ -175,7 +175,7 @@ class AppRunner:
         logger.info(f"Training {model_name} model for category: {category}")
         
         # Create data preparation plugin for model-specific data prep
-        data_prep = factory.create_data_preparation(self.config, spark=self.spark, plugin_name="default")
+        data_prep = factory.create_data_preparation(self.config, spark=self.spark, plugin_name="acm")
         
         # Create model plugin
         model = factory.create_model(self.config, category=category, plugin_name=model_name)
@@ -228,67 +228,203 @@ class AppRunner:
         
         raise NotImplementedError("Model loading from registry not yet implemented")
 
-    def generate_forecasts(self, model_plugin: IModel) -> pd.DataFrame:
+    def validate_model(self, model_plugin: IModel, val_df: DataFrame) -> Dict[str, float]:
         """
-        Step 5: Generate forecasts
+        Validate model performance on validation dataset
+        
+        Args:
+            model_plugin: Trained model plugin instance
+            val_df: Validation DataFrame (Spark DataFrame)
+            
+        Returns:
+            Dictionary with validation metrics (MAPE, RMSE, MAE, R²)
+        """
+        logger.info("=" * 70)
+        logger.info("STEP: Model Validation (using val_df)")
+        logger.info("=" * 70)
+        
+        factory = self._get_factory()
+        model_name = self.config.model.selected_model
+        
+        # Prepare validation data for the model
+        data_prep = factory.create_data_preparation(self.config, spark=self.spark, plugin_name="acm")
+        
+        # Convert val_df to model-specific format
+        logger.info(f"Preparing validation data for {model_name} model...")
+        val_data = data_prep.prepare_for_training(val_df, model_type=model_name)
+        
+        # Predict on validation period (need to predict len(val_df) periods ahead)
+        logger.info(f"Generating predictions for validation period ({len(val_data)} periods)...")
+        val_forecast = model_plugin.predict(periods=len(val_data))
+        
+        # Convert to pandas if needed
+        if hasattr(val_forecast, 'toPandas'):
+            val_forecast = val_forecast.toPandas()
+        
+        # Evaluate model performance
+        logger.info("Evaluating model performance on validation set...")
+        metrics = model_plugin.evaluate(val_forecast, val_data)
+        
+        logger.info("Validation Metrics:")
+        for metric_name, metric_value in metrics.items():
+            logger.info(f"  {metric_name}: {metric_value:.4f}")
+        
+        logger.info("✅ Model validation completed")
+        return metrics
+    
+    def generate_forecasts(self, model_plugin: IModel) -> Dict[str, pd.DataFrame]:
+        """
+        Step 5: Generate forecasts for all configured horizons
         
         Args:
             model_plugin: Trained model plugin instance
             
         Returns:
-            DataFrame with forecast results
+            Dictionary mapping horizon names to forecast DataFrames
+            Example: {'30_days': forecast_df_30, '60_days': forecast_df_60, ...}
         """
         logger.info("=" * 70)
         logger.info("STEP 5: Forecast Generation")
         logger.info("=" * 70)
         
-        # Get forecast horizon - use forecast_horizons_days[0] if available, else default to 90
+        # Get forecast horizons - process ALL values in the array
         if hasattr(self.config.forecast, 'forecast_horizons_days') and self.config.forecast.forecast_horizons_days:
-            horizon_days = self.config.forecast.forecast_horizons_days[0]
+            horizons = self.config.forecast.forecast_horizons_days
         else:
-            horizon_days = 90  # Default
+            horizons = [90]  # Default to single 90-day horizon
         
         model_name = self.config.model.selected_model
-        logger.info(f"Generating {horizon_days}-day forecast using {model_name}")
+        logger.info(f"Generating forecasts for horizons: {horizons} days using {model_name}")
         
-        # Use the model plugin's predict method
-        logger.info(f"Calling {model_name} model predict method with {horizon_days} periods...")
-        forecast_df = model_plugin.predict(periods=horizon_days)
+        forecasts = {}
         
-        # Convert to pandas if it's a Spark DataFrame
-        if hasattr(forecast_df, 'toPandas'):
-            forecast_df = forecast_df.toPandas()
+        # Generate forecasts for each horizon
+        for horizon_days in horizons:
+            logger.info(f"Generating {horizon_days}-day forecast...")
+            
+            # Use the model plugin's predict method
+            forecast_df = model_plugin.predict(periods=horizon_days)
+            
+            # Convert to pandas if it's a Spark DataFrame
+            if hasattr(forecast_df, 'toPandas'):
+                forecast_df = forecast_df.toPandas()
+            
+            # Store with horizon key
+            horizon_key = f"{horizon_days}_days"
+            forecasts[horizon_key] = forecast_df
+            
+            logger.info(f"✅ Generated {horizon_days}-day forecast with {len(forecast_df)} predictions")
         
-        logger.info(f"✅ Generated forecast with {len(forecast_df)} predictions")
-        
-        return forecast_df
+        logger.info(f"✅ Generated forecasts for {len(horizons)} horizon(s)")
+        return forecasts
 
-    def save_forecasts(self, forecast_df: pd.DataFrame, output_path: Optional[str] = None):
+    def save_forecasts(self, forecast_df: Union[pd.DataFrame, Dict[str, pd.DataFrame]], output_path: Optional[str] = None):
         """
         Save forecast results to file
         
         Args:
-            forecast_df: Forecast DataFrame
+            forecast_df: Forecast DataFrame or dictionary of forecasts by horizon
             output_path: Path to save the forecast (CSV, Parquet, etc.)
         """
         logger.info("=" * 70)
         logger.info("STEP: Save Forecast Results")
         logger.info("=" * 70)
         
-        if output_path is None:
-            output_path = "forecast_results.csv"
+        # Handle dictionary of forecasts (multiple horizons)
+        if isinstance(forecast_df, dict):
+            for horizon_key, df in forecast_df.items():
+                if output_path:
+                    # Create horizon-specific filename
+                    base_path = Path(output_path).stem
+                    save_path = str(Path(output_path).parent / f"{base_path}_{horizon_key}.csv")
+                else:
+                    save_path = f"forecast_results_{horizon_key}.csv"
+                df.to_csv(save_path, index=False)
+                logger.info(f"✅ Forecast results saved to: {save_path}")
+        else:
+            # Single DataFrame
+            if output_path is None:
+                output_path = "forecast_results.csv"
+            forecast_df.to_csv(output_path, index=False)
+            logger.info(f"✅ Forecast results saved to: {output_path}")
+    
+    def evaluate_model(self, model_plugin: IModel, test_df: DataFrame) -> Dict[str, float]:
+        """
+        Evaluate model performance on test dataset (final evaluation)
         
-        # Save to CSV
-        forecast_df.to_csv(output_path, index=False)
-        logger.info(f"✅ Forecast results saved to: {output_path}")
+        Args:
+            model_plugin: Trained model plugin instance
+            test_df: Test DataFrame (Spark DataFrame) - used for final evaluation
+            
+        Returns:
+            Dictionary with evaluation metrics (MAPE, RMSE, MAE, R²)
+        """
+        logger.info("=" * 70)
+        logger.info("STEP: Model Evaluation (using test_df)")
+        logger.info("=" * 70)
+        
+        factory = self._get_factory()
+        model_name = self.config.model.selected_model
+        
+        # Prepare test data for the model
+        data_prep = factory.create_data_preparation(self.config, spark=self.spark, plugin_name="acm")
+        
+        # Convert test_df to pandas for date extraction
+        test_df_pd = test_df.toPandas()
+        date_col = self.config.feature.date_column
+        test_df_pd[date_col] = pd.to_datetime(test_df_pd[date_col])
+        
+        # Get test date range
+        test_start_date = test_df_pd[date_col].min()
+        test_end_date = test_df_pd[date_col].max()
+        logger.info(f"Test period: {test_start_date.date()} to {test_end_date.date()}")
+        
+        # Convert test_df to model-specific format
+        logger.info(f"Preparing test data for {model_name} model...")
+        test_data = data_prep.prepare_for_training(test_df, model_type=model_name)
+        
+        # Predict on test period
+        # Prophet predict() returns all historical dates + future periods
+        logger.info(f"Generating predictions for test period ({len(test_data)} periods)...")
+        test_forecast_full = model_plugin.predict(periods=len(test_data))
+        
+        # Convert to pandas if needed
+        if hasattr(test_forecast_full, 'toPandas'):
+            test_forecast_full = test_forecast_full.toPandas()
+        
+        # Extract only test period forecasts (Prophet returns historical + future)
+        # For Prophet, 'ds' column contains dates, need to filter to test period
+        if 'ds' in test_forecast_full.columns:
+            test_forecast_full['ds'] = pd.to_datetime(test_forecast_full['ds'])
+            # Filter to test period dates only
+            test_forecast = test_forecast_full[
+                (test_forecast_full['ds'] >= test_start_date) & 
+                (test_forecast_full['ds'] <= test_end_date)
+            ].copy()
+            logger.info(f"Extracted {len(test_forecast)} forecast points for test period")
+        else:
+            # If no 'ds' column, assume forecast is already aligned
+            test_forecast = test_forecast_full.iloc[-len(test_data):].copy()
+            logger.info(f"Using last {len(test_forecast)} forecast points for test")
+        
+        # Evaluate model performance
+        logger.info("Evaluating model performance on test set...")
+        metrics = model_plugin.evaluate(test_forecast, test_data)
+        
+        logger.info("Test Evaluation Metrics:")
+        for metric_name, metric_value in metrics.items():
+            logger.info(f"  {metric_name}: {metric_value:.4f}")
+        
+        logger.info("✅ Model evaluation completed")
+        return metrics
 
-    def visualize_forecasts(self, train_df: DataFrame, forecast_df: pd.DataFrame, output_path: Optional[str] = None):
+    def visualize_forecasts(self, train_df: DataFrame, forecasts: Union[pd.DataFrame, Dict[str, pd.DataFrame]], output_path: Optional[str] = None):
         """
         Step 6: Create forecast visualizations
         
         Args:
-            train_df: Training DataFrame
-            forecast_df: Forecast DataFrame
+            train_df: Training DataFrame (Spark DataFrame)
+            forecasts: Forecast DataFrame or dictionary of forecasts by horizon
             output_path: Optional path to save the plot
         """
         logger.info("=" * 70)
@@ -310,62 +446,131 @@ class AppRunner:
         # Sort by date
         train_pd = train_pd.sort_values(date_col)
         
-        # Plot
-        plt.figure(figsize=(14, 8))
-        
-        # Plot historical data
-        plt.plot(
-            train_pd[date_col],
-            train_pd[target_col],
-            label="Historical Data",
-            color="blue",
-            linewidth=2
-        )
-        
-        # Plot forecast
-        if 'ds' in forecast_df.columns and 'yhat' in forecast_df.columns:
-            # Prophet format
-            forecast_df['ds'] = pd.to_datetime(forecast_df['ds'])
+        # Handle both single DataFrame and dictionary of forecasts
+        if isinstance(forecasts, dict):
+            # Multiple horizons - plot all
+            num_horizons = len(forecasts)
+            fig, axes = plt.subplots(num_horizons, 1, figsize=(14, 6 * num_horizons), sharex=True)
+            if num_horizons == 1:
+                axes = [axes]
+            
+            for idx, (horizon_key, forecast_df) in enumerate(forecasts.items()):
+                ax = axes[idx]
+                
+                # Plot historical data
+                ax.plot(
+                    train_pd[date_col],
+                    train_pd[target_col],
+                    label="Historical Data",
+                    color="blue",
+                    linewidth=2
+                )
+                
+                # Plot forecast
+                if 'ds' in forecast_df.columns and 'yhat' in forecast_df.columns:
+                    # Prophet format
+                    forecast_df = forecast_df.copy()
+                    forecast_df['ds'] = pd.to_datetime(forecast_df['ds'])
+                    forecast_df = forecast_df.sort_values('ds')
+                    
+                    # Extract only future forecasts (not historical fit)
+                    last_train_date = train_pd[date_col].max()
+                    future_forecast = forecast_df[forecast_df['ds'] > last_train_date]
+                    
+                    if len(future_forecast) > 0:
+                        ax.plot(
+                            future_forecast['ds'],
+                            future_forecast['yhat'],
+                            label=f"Forecast ({horizon_key})",
+                            color="red",
+                            linewidth=2,
+                            linestyle="--"
+                        )
+                        
+                        # Plot confidence intervals if available
+                        if 'yhat_lower' in future_forecast.columns and 'yhat_upper' in future_forecast.columns:
+                            ax.fill_between(
+                                future_forecast['ds'],
+                                future_forecast['yhat_lower'],
+                                future_forecast['yhat_upper'],
+                                alpha=0.2,
+                                color="red",
+                                label="Confidence Interval"
+                            )
+                
+                ax.set_title(f"Forecast: {horizon_key}")
+                ax.set_xlabel("Date")
+                ax.set_ylabel(target_col)
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+        else:
+            # Single forecast DataFrame - original logic
+            forecast_df = forecasts
+            plt.figure(figsize=(14, 8))
+            
+            # Plot historical data
             plt.plot(
-                forecast_df['ds'],
-                forecast_df['yhat'],
-                label="Forecast",
-                color="red",
-                linewidth=2,
-                linestyle="--"
+                train_pd[date_col],
+                train_pd[target_col],
+                label="Historical Data",
+                color="blue",
+                linewidth=2
             )
             
-            # Confidence intervals
-            if 'yhat_lower' in forecast_df.columns and 'yhat_upper' in forecast_df.columns:
-                plt.fill_between(
-                    forecast_df['ds'],
-                    forecast_df['yhat_lower'],
-                    forecast_df['yhat_upper'],
-                    alpha=0.3,
+            # Plot forecast
+            if 'ds' in forecast_df.columns and 'yhat' in forecast_df.columns:
+                # Prophet format
+                forecast_df = forecast_df.copy()
+                forecast_df['ds'] = pd.to_datetime(forecast_df['ds'])
+                forecast_df = forecast_df.sort_values('ds')
+                
+                # Extract only future forecasts (not historical fit)
+                last_train_date = train_pd[date_col].max()
+                future_forecast = forecast_df[forecast_df['ds'] > last_train_date]
+                
+                if len(future_forecast) > 0:
+                    plt.plot(
+                        future_forecast['ds'],
+                        future_forecast['yhat'],
+                        label="Forecast",
+                        color="red",
+                        linewidth=2,
+                        linestyle="--"
+                    )
+                    
+                    # Plot confidence intervals if available
+                    if 'yhat_lower' in future_forecast.columns and 'yhat_upper' in future_forecast.columns:
+                        plt.fill_between(
+                            future_forecast['ds'],
+                            future_forecast['yhat_lower'],
+                            future_forecast['yhat_upper'],
+                            alpha=0.2,
+                            color="red",
+                            label="Confidence Interval"
+                        )
+            elif 'date' in forecast_df.columns and 'forecast' in forecast_df.columns:
+                # Generic format
+                forecast_df['date'] = pd.to_datetime(forecast_df['date'])
+                plt.plot(
+                    forecast_df['date'],
+                    forecast_df['forecast'],
+                    label="Forecast",
                     color="red",
-                    label="Confidence Interval"
+                    linewidth=2,
+                    linestyle="--"
                 )
-        elif 'date' in forecast_df.columns and 'forecast' in forecast_df.columns:
-            # Generic format
-            forecast_df['date'] = pd.to_datetime(forecast_df['date'])
-            plt.plot(
-                forecast_df['date'],
-                forecast_df['forecast'],
-                label="Forecast",
-                color="red",
-                linewidth=2,
-                linestyle="--"
-            )
+            
+            plt.xlabel("Date", fontsize=12)
+            plt.ylabel(f"{target_col} ({self.config.data.cost_categories[0] if self.config.data.cost_categories else 'Cost'})", fontsize=12)
+            plt.title(f"Cost Forecast - {self.config.model.selected_model.upper()} Model", fontsize=14, fontweight="bold")
+            plt.legend(fontsize=11)
+            plt.grid(True, alpha=0.3)
+            plt.xticks(rotation=45)
+            plt.tight_layout()
         
-        plt.xlabel("Date", fontsize=12)
-        plt.ylabel(f"{target_col} ({self.config.data.cost_categories[0] if self.config.data.cost_categories else 'Cost'})", fontsize=12)
-        plt.title(f"Cost Forecast - {self.config.model.selected_model.upper()} Model", fontsize=14, fontweight="bold")
-        plt.legend(fontsize=11)
-        plt.grid(True, alpha=0.3)
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        
-        # Save or show
+        # Save or show plot
         if output_path:
             plt.savefig(output_path, dpi=300, bbox_inches='tight')
             logger.info(f"✅ Forecast visualization saved to: {output_path}")
@@ -422,9 +627,10 @@ class AppRunner:
         # State variables to pass between steps
         raw_df: Optional[DataFrame] = None
         train_df: Optional[DataFrame] = None
+        val_df: Optional[DataFrame] = None
         test_df: Optional[DataFrame] = None
         model_plugin: Optional[IModel] = None
-        forecast_df: Optional[pd.DataFrame] = None
+        forecast_df: Optional[Union[pd.DataFrame, Dict[str, pd.DataFrame]]] = None
         
         try:
             # Step 1: Load or generate data
@@ -436,6 +642,9 @@ class AppRunner:
                 if raw_df is None:
                     raise ValueError("Cannot prepare data: data not loaded. Include 'load_data' step.")
                 train_df, val_df, test_df = self.prepare_data(raw_df)
+                logger.info(f"Data split - Train: {train_df.count() if train_df else 0} rows, "
+                          f"Val: {val_df.count() if val_df else 0} rows, "
+                          f"Test: {test_df.count() if test_df else 0} rows")
             
             # Step 3: Data quality validation
             if 'data_quality' in steps:
@@ -458,18 +667,50 @@ class AppRunner:
                 if model_plugin is None:  # Only load if not already trained
                     model_plugin = self.load_model(category=category)
             
+            # Step 4c: Validate model on validation set
+            validation_metrics = None
+            if 'validate_model' in steps:
+                if model_plugin is None:
+                    raise ValueError("Cannot validate: model not available. Include 'train_model' or 'load_model' step.")
+                if val_df is None or val_df.isEmpty():
+                    logger.warning("Validation DataFrame is None or Empty. Skipping validation step.")
+                else:
+                    validation_metrics = self.validate_model(model_plugin, val_df)
+            
             # Step 5: Generate forecasts
+            forecast_df = None
             if 'forecast' in steps:
                 if model_plugin is None:
                     raise ValueError("Cannot generate forecast: model not available. Include 'train_model' or 'load_model' step.")
                 forecast_df = self.generate_forecasts(model_plugin)
             
+            # Step 5b: Evaluate model on test set (final evaluation)
+            evaluation_metrics = None
+            if 'evaluate_model' in steps:
+                if model_plugin is None:
+                    raise ValueError("Cannot evaluate: model not available. Include 'train_model' or 'load_model' step.")
+                if test_df is None or test_df.isEmpty():
+                    logger.warning("Test DataFrame is None or Empty. Skipping evaluation step.")
+                else:
+                    evaluation_metrics = self.evaluate_model(model_plugin, test_df)
+            
             # Step 6: Save forecast results
             if 'save_results' in steps:
                 if forecast_df is None:
                     raise ValueError("Cannot save results: forecast not generated. Include 'forecast' step.")
-                save_path = output_path if output_path and output_path.endswith('.csv') else "forecast_results.csv"
-                self.save_forecasts(forecast_df, output_path=save_path)
+                # Handle both dict and single DataFrame
+                if isinstance(forecast_df, dict):
+                    # Save each horizon forecast
+                    for horizon_key, df in forecast_df.items():
+                        save_path = output_path if output_path and output_path.endswith('.csv') else f"forecast_results_{horizon_key}.csv"
+                        if output_path:
+                            # If output_path provided, create horizon-specific files
+                            base_path = Path(output_path).stem
+                            save_path = str(Path(output_path).parent / f"{base_path}_{horizon_key}.csv")
+                        self.save_forecasts(df, output_path=save_path)
+                else:
+                    save_path = output_path if output_path and output_path.endswith('.csv') else "forecast_results.csv"
+                    self.save_forecasts(forecast_df, output_path=save_path)
             
             # Step 7: Visualize forecasts
             if 'visualize' in steps:

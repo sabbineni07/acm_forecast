@@ -19,7 +19,7 @@ class TestDataQualityDelta:
         
         # Create test data with some missing values
         factory_ds = PluginFactory()
-        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df = data_source.load_data()
 
         # Validate completeness
@@ -38,7 +38,7 @@ class TestDataQualityDelta:
         data_quality = factory.create_data_quality(test_app_config, spark_session, plugin_name="default")
         
         factory_ds = PluginFactory()
-        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df = data_source.load_data()
 
         # Validate accuracy
@@ -57,7 +57,7 @@ class TestDataQualityDelta:
         data_quality = factory.create_data_quality(test_app_config, spark_session, plugin_name="default")
         
         factory_ds = PluginFactory()
-        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df = data_source.load_data()
 
         # Validate consistency
@@ -75,7 +75,7 @@ class TestDataQualityDelta:
         data_quality = factory.create_data_quality(test_app_config, spark_session, plugin_name="default")
         
         factory_ds = PluginFactory()
-        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df = data_source.load_data()
 
         # Validate timeliness
@@ -93,7 +93,7 @@ class TestDataQualityDelta:
         data_quality = factory.create_data_quality(test_app_config, spark_session, plugin_name="default")
         
         factory_ds = PluginFactory()
-        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory_ds.create_data_source(test_app_config, spark_session, plugin_name="acm")
         df = data_source.load_data()
 
         # Run comprehensive validation

@@ -15,7 +15,7 @@ class TestDataSourceDelta:
     def test_load_from_delta_basic(self, spark_session, test_app_config):
         """Test basic data loading from Delta table"""
         factory = PluginFactory()
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
 
         # Load all data
         df = data_source.load_data()
@@ -34,7 +34,7 @@ class TestDataSourceDelta:
     def test_load_from_delta_with_date_filter(self, spark_session, test_app_config):
         """Test loading data with date filters"""
         factory = PluginFactory()
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
 
         # Load data for specific date range
         df = data_source.load_data(
@@ -60,7 +60,7 @@ class TestDataSourceDelta:
     def test_load_from_delta_with_category_filter(self, spark_session, test_app_config):
         """Test loading data with category filter"""
         factory = PluginFactory()
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
 
         # First, find what categories exist in the test data
         all_df = data_source.load_data()
@@ -85,7 +85,7 @@ class TestDataSourceDelta:
     def test_get_data_profile(self, spark_session, test_app_config):
         """Test getting data profile"""
         factory = PluginFactory()
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
 
         # Load sample data
         df = data_source.load_data()
@@ -105,7 +105,7 @@ class TestDataSourceDelta:
     def test_validate_data_availability(self, spark_session, test_app_config):
         """Test data availability validation"""
         factory = PluginFactory()
-        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark_session, plugin_name="acm")
 
         # Load sample data
         df = data_source.load_data()
@@ -123,7 +123,7 @@ class TestDataSourceDelta:
     def test_map_attributes(self, test_app_config):
         """Test attribute mapping"""
         factory = PluginFactory()
-        data_source = factory.create_data_source(test_app_config, spark=None, plugin_name="delta")
+        data_source = factory.create_data_source(test_app_config, spark=None, plugin_name="acm")
 
         mapping = data_source.map_attributes()
 

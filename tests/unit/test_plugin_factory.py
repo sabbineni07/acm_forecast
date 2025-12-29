@@ -31,11 +31,11 @@ class TestPluginFactory:
         """Test creating a data source plugin"""
         factory = PluginFactory()
         
-        # Should create a DeltaDataSource
+        # Should create an ACMDeltaDataSource
         data_source = factory.create_data_source(
             sample_app_config,
             spark=None,
-            plugin_name="delta"
+            plugin_name="acm"
         )
         
         assert data_source is not None
@@ -75,7 +75,7 @@ class TestPluginFactory:
         data_prep = factory.create_data_preparation(
             sample_app_config,
             spark=None,
-            plugin_name="default"
+            plugin_name="acm"
         )
         
         assert data_prep is not None
@@ -202,7 +202,7 @@ class TestPluginFactory:
         data_source = factory.create_data_source(
             sample_app_config,
             spark=None,
-            plugin_name="delta",
+            plugin_name="acm",
             some_param="test"
         )
         

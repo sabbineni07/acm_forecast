@@ -28,8 +28,8 @@ class TestACMDeltaDataSourcePlugin:
         assert data_source.spark == spark_session
     
     @pytest.mark.unit
-    def test_delta_data_source_has_required_methods(self, sample_app_config, spark_session):
-        """Test that DeltaDataSource has all required interface methods"""
+    def test_acm_delta_data_source_has_required_methods(self, sample_app_config, spark_session):
+        """Test that ACMDeltaDataSource has all required interface methods"""
         factory = PluginFactory()
         data_source = factory.create_data_source(
             sample_app_config,

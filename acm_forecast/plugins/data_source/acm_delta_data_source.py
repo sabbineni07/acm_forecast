@@ -54,13 +54,22 @@ UNITS = {
 }
 
 
-class DeltaDataSource(BasePlugin, IDataSource):
+class ACMDeltaDataSource(BasePlugin, IDataSource):
     """
-    Delta table data source plugin - PRIMARY IMPLEMENTATION
+    ACM (Azure Cost Management) Delta table data source plugin
+    
+    This implementation contains ACM-specific column names and logic:
+    - Hardcoded ACM schema in generate_sample_data()
+    - Azure-specific constants (AZURE_REGIONS, METER_CATEGORIES, SERVICE_TIERS, etc.)
+    - ACM-specific column filters (meter_category, resource_location)
+    - Designed specifically for Azure cost data
+    
     Section 3.1.1: Data Source Location
     Section 3.1.2: Data Constraints
     Section 3.1.3: Data Mapping
     Section 3.1.4: Data Reliability
+    
+    For other use cases, implement IDataSource interface with domain-specific logic.
     """
     
     def __init__(self, config: AppConfig, spark: Optional[SparkSession] = None, **kwargs):
