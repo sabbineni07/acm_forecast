@@ -260,17 +260,27 @@ class PluginFactory:
                                plugin_name: Optional[str] = None,
                                **kwargs) -> IDataPreparation:
         """Create data preparation plugin instance"""
-        plugin_name = plugin_name or getattr(config.plugins, 'data_preparation', {}).get('name', 'acm')
+        # Get plugin name from config or use default
+        if plugin_name is None:
+            if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'data_preparation') and config.plugins.data_preparation:
+                plugin_name = config.plugins.data_preparation.name
+            else:
+                plugin_name = 'acm'  # Default built-in plugin
+        
         plugin_class = self.registry.get_plugin_class('data_preparation', plugin_name)
         
         if plugin_class is None:
             raise ValueError(f"Data preparation plugin '{plugin_name}' not found")
         
-        plugin_config = getattr(config.plugins, 'data_preparation', {}).get('config', {})
-        plugin_config.update(kwargs)
+        # Get plugin-specific config from config.plugins.data_preparation.config
+        plugin_config = {}
+        if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'data_preparation') and config.plugins.data_preparation:
+            plugin_config = getattr(config.plugins.data_preparation, 'config', {}) or {}
+        plugin_config.update(kwargs.pop('plugin_config', {}))
+        kwargs['plugin_config'] = plugin_config
         
         factory = self.registry._factories['data_preparation'].get(plugin_name)
-        return factory(plugin_class, config, spark, plugin_config=plugin_config)
+        return factory(plugin_class, config, spark, **kwargs)
     
     def create_feature_engineer(self,
                                config,
@@ -330,32 +340,52 @@ class PluginFactory:
                          plugin_name: Optional[str] = None,
                          **kwargs) -> IForecaster:
         """Create forecaster plugin instance"""
-        plugin_name = plugin_name or getattr(config.plugins, 'forecaster', {}).get('name', 'default')
+        # Get plugin name from config or use default
+        if plugin_name is None:
+            if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'forecaster') and config.plugins.forecaster:
+                plugin_name = config.plugins.forecaster.name
+            else:
+                plugin_name = 'default'  # Default built-in plugin
+        
         plugin_class = self.registry.get_plugin_class('forecaster', plugin_name)
         
         if plugin_class is None:
             raise ValueError(f"Forecaster plugin '{plugin_name}' not found")
         
-        plugin_config = getattr(config.plugins, 'forecaster', {}).get('config', {})
-        plugin_config.update(kwargs)
+        # Get plugin-specific config from config.plugins.forecaster.config
+        plugin_config = {}
+        if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'forecaster') and config.plugins.forecaster:
+            plugin_config = getattr(config.plugins.forecaster, 'config', {}) or {}
+        plugin_config.update(kwargs.pop('plugin_config', {}))
+        kwargs['plugin_config'] = plugin_config
         
         factory = self.registry._factories['forecaster'].get(plugin_name)
-        return factory(plugin_class, config, plugin_config=plugin_config)
+        return factory(plugin_class, config, **kwargs)
     
     def create_model_registry(self,
                              config,
                              plugin_name: Optional[str] = None,
                              **kwargs) -> IModelRegistry:
         """Create model registry plugin instance"""
-        plugin_name = plugin_name or getattr(config.plugins, 'model_registry', {}).get('name', 'mlflow')
+        # Get plugin name from config or use default
+        if plugin_name is None:
+            if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'model_registry') and config.plugins.model_registry:
+                plugin_name = config.plugins.model_registry.name
+            else:
+                plugin_name = 'mlflow'  # Default built-in plugin
+        
         plugin_class = self.registry.get_plugin_class('model_registry', plugin_name)
         
         if plugin_class is None:
             raise ValueError(f"Model registry plugin '{plugin_name}' not found")
         
-        plugin_config = getattr(config.plugins, 'model_registry', {}).get('config', {})
-        plugin_config.update(kwargs)
+        # Get plugin-specific config from config.plugins.model_registry.config
+        plugin_config = {}
+        if hasattr(config, 'plugins') and config.plugins and hasattr(config.plugins, 'model_registry') and config.plugins.model_registry:
+            plugin_config = getattr(config.plugins.model_registry, 'config', {}) or {}
+        plugin_config.update(kwargs.pop('plugin_config', {}))
+        kwargs['plugin_config'] = plugin_config
         
         factory = self.registry._factories['model_registry'].get(plugin_name)
-        return factory(plugin_class, config, plugin_config=plugin_config)
+        return factory(plugin_class, config, **kwargs)
 
